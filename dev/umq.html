@@ -1,0 +1,1413 @@
+<title>عُمق</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: operations console. Top status bar · side navigation (right, RTL) · main column = live 3D stage + page content. One committed dark "night shift" look. */
+:root{
+  --ink:#0c161c; --ink-2:#121f27; --ink-3:#192b36; --line:#29404d; --line-2:#36535f;
+  --text:#eee9dd; --muted:#97a9b0;
+  --hivis:#ff7a1a; --brass:#dcb05a; --water:#5bbbe0;
+  --good:#6cc28d; --warn:#f0bf4c; --bad:#ef5f52;
+  --f:"Cairo","Segoe UI",Tahoma,system-ui,sans-serif;
+  --mono:"IBM Plex Mono","Cairo",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ink);color:var(--text);font-family:var(--f);font-size:15px;line-height:1.6;overflow:hidden}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--hivis);outline-offset:2px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:plaintext}
+.muted{color:var(--muted)}
+h1,h2,h3{text-wrap:balance}
+
+.app{height:100%;display:flex;flex-direction:column}
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line);background:var(--ink-2)}
+.brand{display:flex;align-items:center;gap:10px;margin-inline-end:auto}
+.brand b{font-size:26px;font-weight:800;line-height:1}
+.brand b i{font-style:normal;color:var(--hivis)}
+.brand span{color:var(--muted);font-size:13px}
+.kpis{display:flex;gap:8px;flex-wrap:wrap}
+.kpi{display:flex;flex-direction:column;padding:2px 12px;border-inline-start:1px solid var(--line);min-width:100px}
+.kpi label{font-size:12px;color:var(--muted);font-weight:600}
+.kpi b{font-family:var(--mono);font-size:17px;font-weight:600;direction:ltr;unicode-bidi:plaintext;text-align:right}
+.kpi b.neg{color:var(--bad)} .kpi b.pos{color:var(--good)}
+.pips{display:flex;gap:4px;padding-top:6px;direction:ltr;justify-content:flex-end}
+.pips span{width:11px;height:11px;transform:rotate(45deg) scale(.8);border:1.5px solid var(--brass)}
+.pips span.on{background:var(--brass)}
+.clock{display:flex;flex-direction:column;padding:2px 12px;border-inline-start:1px solid var(--line)}
+.clock b{font-size:14px;font-weight:700}
+.clock span{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.tbtn{background:var(--ink-3);border:1px solid var(--line);border-radius:var(--r);padding:7px 12px;font-weight:600;font-size:14px;position:relative}
+.tbtn:hover{border-color:var(--line-2)}
+.tbtn .badge{position:absolute;top:-6px;inset-inline-end:-6px}
+.badge{background:var(--hivis);color:#1a0d02;border-radius:10px;font-size:11px;font-family:var(--mono);padding:0 6px;line-height:18px;font-weight:600}
+
+/* shell */
+.shell{flex:1;min-height:0;display:grid;grid-template-columns:212px minmax(0,1fr)}
+.side{border-inline-end:1px solid var(--line);background:var(--ink-2);padding:12px 10px;display:flex;flex-direction:column;gap:4px;overflow-y:auto}
+.side button{display:flex;align-items:center;gap:12px;background:none;border:0;border-radius:var(--r);padding:10px 12px;color:var(--muted);font-weight:600;font-size:15px;text-align:start;position:relative}
+.side button svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.side button:hover{background:var(--ink-3);color:var(--text)}
+.side button[aria-current="page"]{background:var(--ink-3);color:var(--text);box-shadow:inset -3px 0 0 var(--hivis)}
+.side button .badge{margin-inline-start:auto}
+.side .foot{margin-top:auto;padding:10px 12px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+.main{overflow-y:auto;min-height:0;padding-block:14px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+
+/* stage */
+.stage{position:relative;height:clamp(300px,50vh,580px);border-radius:12px;overflow:hidden;background:#0a1318;border:1px solid var(--line);flex:none}
+#stage3d{position:absolute;inset:0}
+#stage3d canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+#stage3d canvas:active{cursor:grabbing}
+.no3d{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);padding:20px;text-align:center}
+.hud{position:absolute;top:12px;inset-inline-start:12px;max-width:min(380px,calc(100% - 24px));background:rgba(10,18,23,.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.hud .eyebrow{font-size:12px;color:var(--brass);font-weight:700;letter-spacing:.02em}
+.hud h2{margin:0;font-size:19px;font-weight:700;line-height:1.35}
+.hud .line{display:flex;justify-content:space-between;gap:14px;font-size:13.5px}
+.hud .line span:first-child{color:var(--muted)}
+.hud .bar{height:7px}
+.daybadge{position:absolute;top:12px;inset-inline-end:12px;background:rgba(10,18,23,.7);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:4px 12px;font-size:12.5px;pointer-events:none}
+.stabs{position:absolute;bottom:12px;inset-inline-start:12px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+.stabs button{background:rgba(10,18,23,.78);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.stabs button[aria-pressed="true"]{border-color:var(--hivis);color:#ffd2b0}
+.draghint{position:absolute;bottom:14px;inset-inline-end:14px;font-size:12px;color:rgba(238,233,221,.6);pointer-events:none}
+
+/* page */
+.pg-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pg-h h1{margin:0;font-size:24px;font-weight:800;line-height:1.3}
+.pg-h p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.card{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-h h2{margin:0;font-size:16.5px;font-weight:700}
+.g2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sec-t{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.02em;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hint{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,transparent,rgba(255,122,26,.10));border:1px solid rgba(255,122,26,.38);border-radius:10px;padding:10px 14px;font-size:14.5px}
+.hint .tag{color:var(--hivis);font-weight:800;white-space:nowrap}
+.hint p{margin:0;flex:1;min-width:0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;padding:1px 10px;border-radius:20px;border:1px solid currentColor;white-space:nowrap;line-height:1.7}
+.chip.water{color:var(--water)} .chip.oil{color:var(--brass)} .chip.good{color:var(--good)} .chip.warn{color:var(--warn)} .chip.bad{color:var(--bad)} .chip.hv{color:var(--hivis)} .chip.mut{color:var(--muted)}
+.bar{height:6px;background:#0a1318;border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--hivis);border-radius:4px}
+.btn{background:var(--ink-3);border:1px solid var(--line-2);border-radius:var(--r);padding:8px 14px;font-weight:700;font-size:14px}
+.btn:hover:not(:disabled){border-color:var(--text)}
+.btn.pri{background:var(--hivis);border-color:var(--hivis);color:#1a0d02}
+.btn.pri:hover:not(:disabled){background:#ff8f3d}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sm{padding:4px 10px;font-size:13px}
+.lnk{background:none;border:0;color:var(--hivis);font-weight:700;font-size:13.5px;padding:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.empty{color:var(--muted);font-size:14px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.fact{display:flex;flex-direction:column;background:var(--ink-3);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px}
+.fact label{font-size:12px;color:var(--muted);font-weight:600}
+.fact b{font-size:16px;font-weight:700}
+.fact b.num{font-weight:600}
+.strata{display:flex;height:10px;border-radius:3px;overflow:hidden;direction:ltr}
+.strata span{height:100%}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{font-size:12px;color:var(--muted);font-weight:700;text-align:start;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;text-align:right;white-space:nowrap}
+.tbl .nm{font-weight:700}
+.tbl .u{display:block;font-size:12px;color:var(--muted);font-weight:500}
+.tbl tr.click{cursor:pointer}
+.tbl tr.click:hover td{background:rgba(255,255,255,.02)}
+.opsrow{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--ink-3);cursor:pointer;text-align:start;width:100%}
+.opsrow:hover{border-color:var(--line-2)}
+.opsrow.sel{border-color:var(--hivis)}
+.opsrow h3{margin:0;font-size:15px;font-weight:700}
+.loglist{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.loglist div{display:flex;gap:10px}
+.loglist time{font-family:var(--mono);color:var(--muted);white-space:nowrap;font-size:12px;padding-top:2px;direction:ltr;min-width:84px;text-align:right}
+.loglist .good{color:var(--good)} .loglist .warn{color:var(--warn)} .loglist .bad{color:var(--bad)}
+.jobtabs{display:flex;gap:8px;flex-wrap:wrap}
+.jobtabs button{background:var(--ink-2);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-weight:700;font-size:14px}
+.jobtabs button[aria-pressed="true"]{border-color:var(--hivis);color:#ffd2b0}
+.offer h3{margin:0;font-size:16px;font-weight:700}
+.offer .sub{color:var(--muted);font-size:13.5px}
+.fmlist{display:flex;flex-direction:column;gap:2px}
+.fm{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:start;padding:8px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.fm:last-child{border-bottom:0}
+.fm i{width:14px;height:14px;border-radius:3px;margin-top:4px}
+.fm b{font-weight:700}
+.fm small{display:block;color:var(--muted);font-size:12.5px}
+.fm .rk{font-size:12px;color:var(--warn)}
+
+/* map */
+.mapbox{position:relative;aspect-ratio:10/7;width:100%;max-width:100%;border-radius:var(--r);overflow:hidden;background:#0a1318}
+.mapbox canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;font-size:13px;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:3}
+.tip b{display:block;font-size:14px}
+
+/* section + console */
+.xbox{position:relative;height:420px;border-radius:var(--r);overflow:hidden;background:#0a1318}
+.xbox canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.con-g{display:grid;grid-template-columns:92px 1fr;gap:14px;align-items:center}
+.ring{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;position:relative;background:conic-gradient(var(--rc,var(--hivis)) calc(var(--p,0)*1%),#0a1318 0)}
+.ring::after{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--ink-2)}
+.ring div{position:relative;z-index:1;text-align:center;line-height:1.1}
+.ring b{font-family:var(--mono);font-size:21px;font-weight:600;display:block}
+.ring small{font-size:11.5px;color:var(--muted)}
+.cstats{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.cstats .row span:last-child{font-family:var(--mono);direction:ltr;unicode-bidi:plaintext}
+.ctl{display:flex;flex-direction:column;gap:2px}
+.ctl label{display:flex;justify-content:space-between;font-size:14px;font-weight:700}
+.ctl label span{font-family:var(--mono);font-weight:500;color:var(--brass);direction:ltr}
+.ctl input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;direction:ltr;margin:0}
+.ctl input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:repeating-linear-gradient(90deg,#28434f 0 1px,#0a1318 1px 10%)}
+.ctl input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:repeating-linear-gradient(90deg,#28434f 0 1px,#0a1318 1px 10%)}
+.ctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:26px;margin-top:-9px;border-radius:4px;background:var(--hivis);border:2px solid #1a0d02;cursor:grab}
+.ctl input[type=range]::-moz-range-thumb{width:16px;height:24px;border-radius:4px;background:var(--hivis);border:2px solid #1a0d02;cursor:grab}
+.ctl input:disabled{opacity:.55}
+.con-tip{font-size:13.5px;border-radius:var(--r);padding:8px 12px;background:#0a1318;border:1px solid var(--line)}
+.con-tip.ok{color:var(--good)} .con-tip.bad{color:var(--warn)}
+.auto{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.supply{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;font-size:14px}
+.supply .bar{grid-column:1/-1;margin-bottom:8px}
+.supply .lft{font-size:13px;font-weight:600;color:var(--good);unicode-bidi:plaintext}
+.supply .lft.short{color:var(--bad)}
+.supply small{color:var(--muted);font-family:var(--mono);font-size:12.5px}
+
+/* overlays */
+[hidden]{display:none!important}
+.fbform{display:grid;gap:8px}.fbform input{height:42px;border-radius:8px;border:1px solid var(--line);background:var(--ink);color:var(--text);padding:0 12px;font:inherit;font-size:16px;text-align:right}.fbform input:focus{outline:2px solid var(--hivis);outline-offset:1px}
+.sync{margin-top:8px;font-size:12px;color:var(--muted)}.sync[data-s=ok]{color:var(--good)}.sync[data-s=err]{color:var(--warn)}
+.ovl{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:rgba(4,9,12,.72)}
+.mcard{background:var(--ink-2);border:1px solid var(--line);border-radius:12px;width:min(580px,100%);max-height:100%;overflow-y:auto;display:flex;flex-direction:column}
+.mcard header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mcard h3{margin:0;font-size:20px;font-weight:800}
+.mcard .body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.mcard footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.pickrow{display:flex;gap:8px;flex-wrap:wrap}
+.pick{background:var(--ink-3);border:1px solid var(--line);border-radius:var(--r);padding:7px 12px;text-align:start;font-size:14px;font-weight:700}
+.pick[aria-pressed="true"]{border-color:var(--hivis);box-shadow:0 0 0 1px var(--hivis) inset}
+.pick small{display:block;color:var(--muted);font-size:12px;font-weight:500}
+.cargo{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 12px;align-items:center}
+.cargo .nm{font-weight:700;font-size:14px}
+.cargo .nm small{display:block;color:var(--muted);font-weight:500;font-size:12.5px}
+.step{display:flex;align-items:center;direction:ltr;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.step button{background:var(--ink-3);border:0;width:32px;height:32px;font-size:17px}
+.step button:hover{background:#264050}
+.step input{width:78px;height:32px;border:0;border-inline:1px solid var(--line);background:var(--ink);color:var(--text);text-align:center;font-family:var(--mono);font-size:14px}
+.capbar{height:10px;background:#0a1318;border-radius:5px;overflow:hidden}
+.capbar i{display:block;height:100%;background:var(--good)}
+.capbar.over i{background:var(--bad)}
+#incident{background:rgba(32,6,4,.62);z-index:25}
+.icard{width:min(540px,100%);background:var(--ink-2);border:1px solid var(--bad);border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:100%;overflow-y:auto}
+.hazard{height:12px;background:repeating-linear-gradient(-45deg,#f0bf4c 0 12px,#1a1305 12px 24px)}
+.icard .body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.icard h3{margin:0;font-size:23px;font-weight:800;color:var(--bad)}
+.icard p{margin:0}
+.timer{height:8px;background:#0a1318;border-radius:4px;overflow:hidden}
+.timer i{display:block;height:100%;background:var(--bad)}
+.choice{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:start;background:var(--ink-3);border:1px solid var(--line-2);border-radius:var(--r);padding:10px 14px;font-weight:700;font-size:15px}
+.choice:hover{border-color:var(--hivis)}
+.choice small{font-weight:500;color:var(--muted);font-size:13px}
+.choice.risky small{color:var(--bad)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.icard.shake{animation:shake .35s linear 2}
+#drawer{position:fixed;top:0;bottom:0;inset-inline-end:0;width:min(420px,100%);background:var(--ink-2);border-inline-start:1px solid var(--line);z-index:22;display:flex;flex-direction:column;box-shadow:-20px 0 50px rgba(0,0,0,.45);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#drawer header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+#drawer h3{margin:0;font-size:18px;font-weight:800}
+#drawer .loglist{padding:14px 18px;overflow-y:auto}
+#toasts{position:fixed;bottom:max(16px,env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:8px;z-index:30;pointer-events:none;width:min(380px,calc(100% - 32px))}
+.toast{background:var(--ink-3);border:1px solid var(--line);border-inline-start:4px solid var(--hivis);border-radius:var(--r);padding:10px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);animation:tin .25s ease-out;font-size:14px}
+.toast.good{border-inline-start-color:var(--good)} .toast.bad{border-inline-start-color:var(--bad)} .toast.warn{border-inline-start-color:var(--warn)}
+.toast b{display:block;font-weight:800}
+@keyframes tin{from{transform:translateY(8px);opacity:.3}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.toast,.icard.shake{animation:none}}
+
+/* responsive */
+@media (max-width:1280px){.g3{grid-template-columns:repeat(2,minmax(0,1fr))}.g3>.card:first-child{grid-row:span 2}}
+@media (max-width:1050px){.g2{grid-template-columns:1fr}.kpi{min-width:0}}
+@media (max-width:860px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100%}
+  .shell{display:block}
+  .side{position:fixed;bottom:0;left:0;right:0;z-index:15;flex-direction:row;justify-content:space-around;padding:4px max(4px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(4px,env(safe-area-inset-left,0px));border-inline-end:0;border-top:1px solid var(--line);overflow:visible;gap:0}
+  .side button{flex-direction:column;gap:2px;padding:6px 2px;font-size:10.5px;flex:1;min-width:0}
+  .side button[aria-current="page"]{box-shadow:inset 0 3px 0 var(--hivis)}
+  .side button .badge{position:absolute;top:2px;inset-inline-end:18%;margin:0}
+  .side .foot{display:none}
+  .main{overflow:visible;padding-bottom:96px}
+  .stage{height:340px}
+  .hud{max-width:66%;padding:8px 10px;gap:4px}.hud h2{font-size:14.5px;line-height:1.3}.hud .eyebrow{font-size:11px}.hud .line{font-size:12px;gap:8px}.hud .line~.line{display:none}
+  .g3{grid-template-columns:1fr}.g3>.card:first-child{grid-row:auto}
+  .brand{width:100%}
+  .kpis{width:100%}
+  .kpi{flex:1 1 28%;border:0;padding:0}.kpi b{font-size:15px}
+  .clock{border:0;padding:0}
+  .draghint{display:none}
+  .xbox{height:360px}
+  #toasts{bottom:calc(76px + env(safe-area-inset-bottom,0px));left:12px;right:12px;width:auto}
+  .tbl.inv thead{display:none}.tbl.inv tr{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:6px 14px;padding:12px 0;border-bottom:1px solid var(--line)}.tbl.inv tr:last-child{border-bottom:0}.tbl.inv td{border:0;padding:0}.tbl.inv td:first-child{grid-column:1/-1}.tbl.inv td.n::before{content:attr(data-l);display:block;font-family:Cairo,sans-serif;font-size:11px;color:var(--muted);text-align:start}
+}
+</style>
+
+<div class="app" dir="rtl" lang="ar">
+  <header class="top">
+    <div class="brand"><b>عُمق<i>.</i></b><span>شركة حفر آبار</span></div>
+    <div class="kpis">
+      <div class="kpi"><label>الرصيد</label><b id="k-cash">—</b></div>
+      <div class="kpi"><label>السمعة</label><div class="pips" id="k-rep"></div></div>
+      <div class="kpi"><label>صافي اليوم المتوقع</label><b id="k-net">—</b></div>
+    </div>
+    <div class="clock"><b id="k-day">—</b><span id="k-time">—</span></div>
+    <button class="tbtn" data-act="drawer" aria-label="سجل الأحداث">الأحداث<span class="badge" id="k-unread" hidden></span></button>
+    <button class="tbtn" data-act="menu">القائمة</button>
+  </header>
+  <div class="shell">
+    <nav class="side" id="nav" aria-label="الأقسام"></nav>
+    <main class="main" id="main">
+      <section class="stage" aria-label="المشهد المباشر">
+        <div id="stage3d"></div>
+        <div class="hud" id="hud"></div>
+        <div class="daybadge" id="daybadge"></div>
+        <div class="stabs" id="stabs" data-live></div>
+        <div class="draghint">اسحب لتدوير الكاميرا · عجلة الماوس للتقريب</div>
+      </section>
+      <section id="page" data-live></section>
+    </main>
+  </div>
+</div>
+<div id="modal" class="ovl" hidden></div>
+<div id="incident" class="ovl" hidden></div>
+<aside id="drawer" hidden><header><h3>سجل الأحداث</h3><button class="btn sm" data-act="drawer-close">إغلاق</button></header><div class="loglist" id="drawer-log"></div></aside>
+<div id="toasts"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+/* Real time: 1 game hour = 1 real hour. "#dev" in the link runs 720× faster for testing. */
+const DEV=location.hash==='#dev';
+const SCALE=DEV?720:1;
+
+/* ======================= WORLD ======================= */
+const MAPW=1000,MAPH=700,KM=0.32,ROAD=1.18;
+const DEPOT={id:'depot',name:'قاعدة الشركة',x:505,y:372};
+const SITES=[
+  {id:'hamdan', name:'مزرعة آل حمدان',x:388,y:296,kind:'water',geo:'plateau'},
+  {id:'hamra',  name:'تل الحمرا',x:706,y:214,kind:'water',geo:'basalt'},
+  {id:'wadi',   name:'وادي السِّدر',x:296,y:528,kind:'water',geo:'marl'},
+  {id:'shomar', name:'عين الشومر',x:168,y:214,kind:'water',geo:'plateau'},
+  {id:'waha',   name:'منتجع الواحة',x:590,y:96,kind:'water',geo:'basalt'},
+  {id:'rest',   name:'استراحة الطريق الصحراوي',x:866,y:350,kind:'water',geo:'basalt'},
+  {id:'sahl',   name:'مزارع السهل',x:604,y:566,kind:'water',geo:'marl'},
+  {id:'rummana',name:'حقل الرمّانة',x:836,y:590,kind:'oil',geo:'oil'},
+  {id:'safa',   name:'حقل الصفّا',x:128,y:612,kind:'oil',geo:'oil'},
+];
+const siteById=id=>id==='depot'?DEPOT:SITES.find(s=>s.id===id);
+const kmBetween=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)*KM*ROAD;
+
+/* Formations modelled on the stratigraphy of the eastern desert (Badia) and its basins.
+   ucs = unconfined compressive strength (MPa). rop = field penetration rate of a truck rotary rig, m/h, in good conditions.
+   abr = abrasiveness 0..1. Flags: aq aquifer, frac losses, swell sticky clay, kick pressure, cave caving, oil reservoir. */
+const FM={
+  alluv:  {n:'رسوبيات وادي',code:'Q', lith:'حصى ورمل وطمي غير متماسك',ucs:4,  rop:20,abr:.35,c:'#d4bb85',p:'dots',cave:1},
+  basalt: {n:'بازلت حرّة الشام',code:'Tb',lith:'بازلت أسود كثيف مع فراغات غازية',ucs:190,rop:2.0,abr:.75,c:'#46474f',p:'vee',frac:.5},
+  shall:  {n:'تكوين وادي شلالة',code:'B5',lith:'طباشير وحجر جيري طباشيري',ucs:22,rop:11,abr:.15,c:'#ddd3b5',p:'brick'},
+  rijam:  {n:'تكوين الرجام',code:'B4',lith:'حجر جيري مع عُقد صوّان',ucs:115,rop:3.4,abr:.85,c:'#c8bd98',p:'chert',aq:1,frac:1},
+  muwq:   {n:'تكوين الموقّر',code:'B3',lith:'طباشير ومارل طيني',ucs:18,rop:10,abr:.12,c:'#b7a987',p:'dash',swell:1},
+  amman:  {n:'جيري عمّان السيليسي',code:'B2',lith:'جيري سيليسي وصوّان وفوسفات',ucs:150,rop:2.3,abr:1.0,c:'#bfb08a',p:'chert',aq:1,frac:1,kick:.4},
+  wsir:   {n:'جيري وادي السير',code:'A7',lith:'حجر جيري ودولوميت متشقق (كارست)',ucs:90,rop:4.6,abr:.4,c:'#cfc4a0',p:'brick',aq:1,frac:1,kick:.35},
+  shueib: {n:'تكوين شعيب',code:'A3',lith:'مارل وجيري متناوب',ucs:35,rop:8,abr:.2,c:'#b2a684',p:'dash',swell:.5},
+  naur:   {n:'جيري ناعور',code:'A1-2',lith:'حجر جيري ودولوميت صلب',ucs:85,rop:4.8,abr:.35,c:'#c9bea0',p:'brick'},
+  kurnub: {n:'حجر رملي الكرنب',code:'K',lith:'حجر رملي متوسط التماسك',ucs:45,rop:7.5,abr:.6,c:'#c8975d',p:'dots',aq:1},
+  trias:  {n:'تكوينات ترياسية',code:'Tr',lith:'طَفَل وأنهيدريت وحجر رملي',ucs:55,rop:6,abr:.4,c:'#8d7d66',p:'dash',swell:.6},
+  res:    {n:'مكمن دولوميتي',code:'RES',lith:'دولوميت مسامي حامل للنفط',ucs:70,rop:5.2,abr:.35,c:'#3b3226',p:'dots',oil:1,kick:.7},
+};
+const L=(arr)=>{let f=0;return arr.map(([r,to])=>{const o={r,from:f,to};f=to;return o;});};
+
+const ITEMS={
+  diesel: {n:'ديزل',u:'لتر',w:0.00085,price:0.9,step:500},
+  mud:    {n:'طين حفر (بنتونايت)',u:'كيس 25 كغ',w:0.025,price:12,step:20},
+  casingW:{n:'مواسير تغليف مياه 8⅝"',u:'وصلة 12 م',w:0.35,price:160,step:5,len:12},
+  casingO:{n:'مواسير تغليف نفط 9⅝"',u:'وصلة 24 م',w:1.2,price:1100,step:5,len:24},
+  bitT:   {n:'رأس ثلاثي المخاريط (TCI)',u:'رأس',w:0.12,price:1400,step:1},
+  bitP:   {n:'رأس PDC ماسي',u:'رأس',w:0.1,price:5200,step:1},
+};
+const ITEM_KEYS=Object.keys(ITEMS);
+const RIG={
+  water:{n:'حفارة مياه على شاحنة',mult:1.0,dpm:8, mpm:0.5,casing:'casingW',open:30,mv:[8,0.20],rigup:0.75,wage:350, trip:1.5,ctime:0.4,tripRate:120},
+  oil:  {n:'حفارة نفط ثقيلة',    mult:1.7,dpm:20,mpm:0.6,casing:'casingO',open:72,mv:[22,0.26],rigup:4,  wage:2400,trip:4,  ctime:1.0,tripRate:250},
+};
+const moveH=(kind,km)=>(RIG[kind].mv[0]+km*RIG[kind].mv[1])/60;
+const truckH=km=>(6+km*0.32)/60;
+const T_LOAD=0.25,T_UNLOAD=0.25,T_SERVICE=1;
+const BIT={
+  bitT:{n:'ثلاثي المخاريط',ropF:fm=>1.0,wear:fm=>(0.15+fm.abr*1.2)*Math.pow(fm.ucs/60,0.6)},
+  bitP:{n:'PDC',ropF:fm=>fm.abr>0.7?0.85:1.6,wear:fm=>0.05*Math.pow(fm.ucs/60,0.5)*(fm.abr>0.7?4:1)},
+};
+const STALL={diesel:'نفد الديزل في الموقع',mud:'نفد طين الحفر',casing:'بانتظار مواسير التغليف',bit:'لا يوجد رأس حفر بديل'};
+const CLIENTS={water:['جمعية مزارعي السهل','بلدية البادية','شركة ألبان الوادي','مدرسة القرية الثانوية','مستوصف الهلال','مزارع النخيل الحديثة','تعاونية الرعاة','فندق استراحة الطريق'],oil:['شركة البادية للاستكشاف','الشركة الوطنية للنفط','مجموعة الصحراء للطاقة']};
+const UPG=[
+  {id:'truck', n:'شاحنة مسطحة',d:'حمولة 12 طن. كل شاحنة إضافية تعني شحنة متوازية.',cost:()=>24000},
+  {id:'heavy', n:'شاحنة ثقيلة',d:'حمولة 30 طن. ضرورية لنقل مواسير النفط.',cost:()=>58000},
+  {id:'rig2',  n:'حفارة مياه ثانية',d:'تشتغل على عقدين بنفس الوقت.',cost:()=>75000},
+  {id:'oilrig',n:'حفارة نفط ثقيلة',d:'تفتح عقود النفط. العقود تطلب سمعة 3 نجوم.',cost:()=>165000},
+  {id:'pdc',   n:'رخصة رؤوس PDC',d:'أسرع ×1.6 بالطباشير والجيري والرملي، بس بتنهار بالصوّان والبازلت.',cost:()=>15000},
+  {id:'auto',  n:'طيار حفر آلي',d:'بيضبط الثقل والدوران والضخ لحاله على كل طبقة (حوالي 85%). مفيد لما تكون مسكّر اللعبة.',cost:()=>28000},
+  {id:'crew',  n:'تدريب الطواقم',d:'+12% سرعة حفر لكل مستوى (حتى 4).',cost:()=>12000*(S.crew+1)},
+];
+
+/* ======================= STATE ======================= */
+let S=null,OFF=false;
+function rng(){let t=(S.seed=(S.seed+0x6D2B79F5)|0);t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}
+const rr=(a,b)=>a+(b-a)*rng(),ri=(a,b)=>Math.floor(rr(a,b+1)),pick=a=>a[Math.floor(rng()*a.length)];
+const nid=p=>p+(S.nid++);
+const emptyStock=()=>({diesel:0,mud:0,casingW:0,casingO:0,bitT:0,bitP:0});
+function mkJob(site,client,title,kind,target,reward,days,layers,req){return{id:nid('J'),site,client,title,kind,target,reward,days,layers,req:req||{},state:'offer',expires:null,deadline:null,depth:0,cased:0,stock:emptyStock(),rig:null,stall:null,flags:{},rop:0};}
+function newGame(){
+  const now=Date.now();
+  S={v:3,start:now,wall:now,t:0,cash:55000,rep:1,crew:0,pdc:false,autoDrill:false,seed:(now%2147483647)|0,nid:1,lastDay:0,
+    depot:{diesel:3000,mud:140,casingW:20,casingO:0,bitT:4,bitP:0},
+    rigs:[],trucks:[],jobs:[],wells:[],log:[],ledger:[],sel:null,page:'overview',focus:null,seenLog:0,seenCon:0,inc:null,
+    stats:{meters:0,earned:0,done:0}};
+  S.rigs.push(mkRig('water','الصقر'));
+  S.trucks.push(mkTruck('شاحنة 1',12));
+  const J=(...a)=>{const j=mkJob(...a);S.jobs.push(j);return j;};
+  J('hamdan','مزرعة آل حمدان','بئر ري للبساتين','water',160,26000,6,L([['alluv',12],['shall',70],['rijam',260]]));
+  J('wadi','شركة ألبان الوادي','بئر مياه لمصنع الألبان','water',230,38000,8,L([['alluv',25],['muwq',140],['amman',320]]));
+  J('hamra','بلدية تل الحمرا','بئر مياه شرب للبلدة','water',210,48000,9,L([['basalt',60],['shall',110],['rijam',300]]));
+  J('rummana','شركة البادية للاستكشاف','بئر استكشافي','oil',1450,420000,30,L([['alluv',15],['shall',120],['rijam',260],['muwq',520],['amman',640],['wsir',760],['shueib',880],['naur',1050],['kurnub',1300],['res',1700]]),{rep:3,rig:'oil'});
+  log('أهلاً بك. عندك حفارة مياه وشاحنة ومستودع فيه مخزون بسيط. اقبل أول عقد وابدأ. الوقت باللعبة حقيقي.','info');
+  S.sel=S.jobs[0].id;return S;
+}
+function mkRig(kind,name){return{id:nid('R'),kind,name,x:DEPOT.x,y:DEPOT.y,at:'depot',state:'idle',jobId:null,bit:{type:'bitT',life:100},home:false,ctl:{wob:30,rpm:78,pump:45},cut:0};}
+function mkTruck(name,cap){return{id:nid('T'),name,cap,state:'idle',dest:null,mission:null,cargo:emptyStock(),t0:0,t1:0,hours:0};}
+const jobById=id=>S.jobs.find(j=>j.id===id);
+const rigById=id=>S.rigs.find(r=>r.id===id);
+const wellById=id=>S.wells.find(w=>w.id===id);
+const truckById=id=>S.trucks.find(t=>t.id===id);
+function log(msg,kind){S.log.unshift({t:S.t,msg,kind:kind||'info'});if(S.log.length>120)S.log.length=120;}
+function toast(title,msg,kind){
+  if(OFF)return;
+  const el=document.createElement('div');el.className='toast '+(kind||'');
+  el.innerHTML='<b>'+esc(title)+'</b>'+(msg?'<span>'+esc(msg)+'</span>':'');
+  $('#toasts').prepend(el);setTimeout(()=>el.remove(),5500);
+}
+
+/* ======================= TIME & FORMAT ======================= */
+const money=n=>(n<0?'−$':'$')+Math.abs(Math.round(n)).toLocaleString('en-US');
+const num=n=>Math.round(n).toLocaleString('en-US');
+const AR_DAYS=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const realOf=t=>new Date(S.start+t*3.6e6/SCALE);
+const hm=d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+function when(t){const d=realOf(t),now=new Date(),tm=new Date(now.getTime()+864e5);
+  const lbl=d.toDateString()===now.toDateString()?'اليوم':d.toDateString()===tm.toDateString()?'بكرا':AR_DAYS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);return lbl+' '+hm(d);}
+function stamp(t){const d=realOf(t);return AR_DAYS[d.getDay()]+' '+hm(d);}
+function dur(h){if(h<0)h=0;const m=Math.round(h*60);if(m<60)return Math.max(1,m)+' د';const H=Math.floor(m/60),M=m%60;if(H<24)return H+' س'+(M?' '+M+' د':'');const D=Math.floor(H/24),hh=H%24;return D+' يوم'+(hh?' '+hh+' س':'');}
+const opDay=t=>Math.floor(t/24)+1;
+function layerAt(job,d){for(const l of job.layers)if(d>=l.from&&d<l.to)return l;return job.layers[job.layers.length-1];}
+function cargoWeight(c){let w=0;for(const k of ITEM_KEYS)w+=(c[k]||0)*ITEMS[k].w;return w;}
+function inTransit(jobId){const c=emptyStock();for(const t of S.trucks)if(t.mission==='supply'&&t.dest===jobId&&(t.state==='loading'||t.state==='out'))for(const k of ITEM_KEYS)c[k]+=t.cargo[k];return c;}
+const jobRigKind=job=>job.kind==='oil'?'oil':'water';
+
+/* ======================= DRILLING MODEL ======================= */
+const hardOf=fm=>clamp(fm.ucs/40,0.5,5);
+function opt(fm){const h=hardOf(fm);return{wob:Math.round(18+h*15),rpm:Math.round(92-h*13),pump:Math.round(30+h*6+(fm.swell?10:0))};}
+function ctlOf(r){return r.ctl||(r.ctl={wob:30,rpm:78,pump:45});}
+function effAt(c,fm){const o=opt(fm);return Math.exp(-Math.pow((c.wob-o.wob)/26,2)-Math.pow((c.rpm-o.rpm)/28,2));}
+function wearMul(c,fm){const o=opt(fm);return 1+Math.pow(Math.max(0,c.wob-o.wob)/22,2)+Math.pow(Math.max(0,c.rpm-o.rpm)/26,2);}
+function ropFor(kind,bitType,fm,e){return fm.rop*RIG[kind].mult*BIT[bitType].ropF(fm)*(1+0.12*S.crew)*(0.3+0.85*e);}
+function fracMul(job,l){const fm=FM[l.r];if(!fm.frac)return 1;const f=job.flags['l'+l.from];return f==='lcm'?1.2:f==='low'?2:1+2*fm.frac;}
+/* resource needs to finish a job */
+function needs(job){
+  const R=RIG[jobRigKind(job)],rig=job.rig?rigById(job.rig):null;
+  const remain=Math.max(0,job.target-job.depth);let mud=0,wear=0;const bt=S.pdc?'bitP':'bitT';
+  for(const l of job.layers){const a=Math.max(l.from,job.depth),b=Math.min(l.to,job.target);if(b<=a)continue;const fm=FM[l.r];mud+=(b-a)*R.mpm*(fm.frac?1+2*fm.frac:1);wear+=(b-a)*BIT[bt].wear(fm);}
+  const cur=rig&&rig.jobId===job.id?Math.max(0,rig.bit.life):0;
+  const bits=Math.max(0,Math.ceil((wear-cur)/100));
+  const casing=Math.max(0,Math.ceil((job.target-R.open-job.cased)/ITEMS[R.casing].len));
+  return {diesel:remain*R.dpm*1.08,mud:mud*1.15+30,[R.casing]:casing,[bt]:bits,remain};
+}
+/* metres the current site stock can carry */
+function reach(job){
+  const R=RIG[jobRigKind(job)],st=job.stock,out={};
+  out.diesel=st.diesel/R.dpm;
+  let m=st.mud,d=job.depth;
+  while(m>0&&d<job.target){const l=layerAt(job,d);const per=R.mpm*fracMul(job,l);const seg=Math.min(l.to,job.target)-d;const can=m/per;if(can>=seg){m-=seg*per;d+=seg;}else{d+=can;m=0;}}
+  out.mud=d-job.depth;
+  out.casing=Math.max(0,job.cased+st[R.casing]*ITEMS[R.casing].len+R.open-job.depth);
+  const rig=job.rig?rigById(job.rig):null;let life=(rig&&rig.jobId===job.id?Math.max(0,rig.bit.life):0)+(st.bitT+st.bitP)*100;d=job.depth;
+  const bt=st.bitP>0||(rig&&rig.bit.type==='bitP')?'bitP':'bitT';
+  while(life>0&&d<job.target){const l=layerAt(job,d);const wr=BIT[bt].wear(FM[l.r]);const seg=Math.min(l.to,job.target)-d;const can=life/wr;if(can>=seg){life-=seg*wr;d+=seg;}else{d+=can;life=0;}}
+  out.bits=d-job.depth;return out;
+}
+/* forecast drilling hours per formation (planning sheet) */
+function layerPlan(job,kind){
+  kind=kind||jobRigKind(job);const bt=S.pdc?'bitP':'bitT';const e=S.autoDrill?0.85:0.8;
+  return job.layers.filter(l=>l.from<job.target).map(l=>{const fm=FM[l.r],a=l.from,b=Math.min(l.to,job.target);const rop=ropFor(kind,bt,fm,e);return{l,fm,a,b,rop,h:(b-a)/rop};});
+}
+function estFinish(job){
+  const rig=job.rig?rigById(job.rig):null;if(!rig||rig.jobId!==job.id)return null;
+  const R=RIG[rig.kind];let h=0;
+  if(rig.state==='moving')h+=Math.max(0,rig.t1-S.t)+R.rigup;else if(['rigup','wait','tripping','casing'].includes(rig.state))h+=Math.max(0,rig.t1-S.t);
+  const c=ctlOf(rig);let wear=0;
+  for(const l of job.layers){const a=Math.max(l.from,job.depth),b=Math.min(l.to,job.target);if(b<=a)continue;const fm=FM[l.r];const e=S.autoDrill&&rig.auto!==false?0.85:(l===layerAt(job,job.depth)?effAt(c,fm):0.75);h+=(b-a)/ropFor(rig.kind,rig.bit.type,fm,e);wear+=(b-a)*BIT[rig.bit.type].wear(fm);}
+  const trips=Math.max(0,Math.ceil((wear-Math.max(0,rig.bit.life))/100));h+=trips*(R.trip+(job.depth+job.target)/2/R.tripRate);
+  h+=Math.max(0,Math.ceil((job.target-R.open-job.cased)/ITEMS[R.casing].len))*R.ctime;
+  return h;
+}
+
+/* ======================= CONTRACTS ======================= */
+function genLayers(site,target,kind){
+  const g=site.geo;const out=[];let d=0;const push=(r,th)=>{out.push({r,from:d,to:d+th});d+=th;};
+  if(kind==='oil'){
+    push('alluv',ri(10,25));push('shall',ri(80,140));push('rijam',ri(110,170));push('muwq',ri(180,280));push('amman',ri(90,140));push('wsir',ri(100,150));push('shueib',ri(90,140));push('naur',ri(140,220));
+    if(rng()<.6)push('kurnub',ri(180,260));else push('trias',ri(160,240));
+    const resTop=d;push('res',ri(250,400));
+    return{layers:out,target:Math.round((resTop+ri(60,140))/10)*10};
+  }
+  if(g==='basalt'){push('basalt',ri(35,90));push(pick(['shall','muwq']),ri(30,70));push('rijam',ri(140,200));}
+  else if(g==='marl'){push('alluv',ri(10,30));push('muwq',ri(80,150));push('amman',ri(120,180));push('wsir',ri(150,250));}
+  else{push('alluv',ri(6,20));push('shall',ri(40,90));push('rijam',ri(120,180));push('muwq',ri(100,160));push('amman',ri(120,180));}
+  // water target: inside the first or second aquifer
+  const aqs=out.filter(l=>FM[l.r].aq);const aq=rng()<.65?aqs[0]:(aqs[1]||aqs[0]);
+  target=Math.round((aq.from+Math.min(aq.to-aq.from-10,ri(25,80)))/10)*10;
+  return{layers:out,target};
+}
+function genContract(){
+  const hasOil=S.rigs.some(r=>r.kind==='oil');const oil=hasOil&&rng()<0.35;const kind=oil?'oil':'water';
+  const busy=new Set(S.jobs.filter(j=>j.state!=='done').map(j=>j.site));
+  const cands=SITES.filter(s=>s.kind===kind&&!busy.has(s.id));if(!cands.length)return;
+  const s=pick(cands),d=kmBetween(DEPOT,s);const {layers,target}=genLayers(s,0,kind);
+  const hrs=layerPlan({layers,target},kind).reduce((a,p)=>a+p.h,0);
+  let reward,days,title;
+  if(kind==='water'){reward=Math.round((hrs*620+target*60+d*120+ri(0,30)*100)/500)*500;days=Math.ceil((hrs*1.5+24)/24)+2;title=pick(['بئر ري زراعي','بئر مياه شرب','بئر بديل لبئر جاف','بئر لسقاية المواشي','بئر لمشروع سكني']);}
+  else{reward=Math.round((target*250+hrs*900+d*500)/5000)*5000;days=Math.ceil(hrs*1.6/24)+6;title=pick(['بئر تطويري','بئر استكشافي','بئر إنتاج']);}
+  const job=mkJob(s.id,pick(CLIENTS[kind]),title,kind,target,reward,days,layers,kind==='oil'?{rep:3,rig:'oil'}:{});
+  job.expires=S.t+ri(3,6)*24;S.jobs.push(job);
+  log('عرض عقد جديد: '+job.title+' في «'+s.name+'» بعمق '+target+' م وقيمة '+money(reward)+'.','info');
+}
+
+/* ======================= ACTIONS ======================= */
+function canAccept(job){
+  if(job.req.rep&&S.rep<job.req.rep)return 'يحتاج سمعة '+job.req.rep+' نجوم';
+  if(job.req.rig&&!S.rigs.some(r=>r.kind===job.req.rig))return 'يحتاج حفارة نفط';
+  if(S.jobs.filter(j=>j.state==='active').length>=4)return 'عندك 4 عقود نشطة';
+  return null;
+}
+function acceptJob(id){const j=jobById(id);if(!j||j.state!=='offer'||canAccept(j))return;j.state='active';j.deadline=S.t+j.days*24;j.expires=null;S.sel=j.id;S.focus=null;log('تم توقيع عقد «'+siteById(j.site).name+'». التسليم قبل '+when(j.deadline)+'.','good');save();}
+function sendRig(jobId,rigId){
+  const j=jobById(jobId),r=rigById(rigId);if(!j||!r||r.jobId||j.rig||r.state!=='idle'||r.kind!==jobRigKind(j))return;
+  const s=siteById(j.site),km=Math.hypot(r.x-s.x,r.y-s.y)*KM*ROAD;
+  r.state='moving';r.home=false;r.from={x:r.x,y:r.y};r.to={x:s.x,y:s.y};r.t0=S.t;r.t1=S.t+moveH(r.kind,km);r.km=km;r.jobId=j.id;r.at=null;j.rig=r.id;S.focus=null;S.sel=j.id;
+  log('الحفارة «'+r.name+'» انطلقت إلى «'+s.name+'» ('+Math.round(km)+' كم، توصل '+when(r.t1)+').','info');save();
+}
+function rigHome(rigId){const r=rigById(rigId);if(!r||r.state!=='idle'||r.at==='depot'||r.jobId)return;const km=Math.hypot(r.x-DEPOT.x,r.y-DEPOT.y)*KM*ROAD;
+  r.state='moving';r.home=true;r.from={x:r.x,y:r.y};r.to={x:DEPOT.x,y:DEPOT.y};r.t0=S.t;r.t1=S.t+moveH(r.kind,km);r.km=km;r.at=null;S.focus={type:'rig',id:r.id};log('الحفارة «'+r.name+'» راجعة للقاعدة.','info');}
+function dispatch(truckId,jobId,cargo){
+  const t=truckById(truckId),j=jobById(jobId);if(!t||t.state!=='idle'||!j||j.state!=='active')return false;
+  const w=cargoWeight(cargo);if(w<=0||w>t.cap+1e-6)return false;
+  for(const k of ITEM_KEYS)if((cargo[k]||0)>S.depot[k])return false;
+  for(const k of ITEM_KEYS){S.depot[k]-=cargo[k]||0;t.cargo[k]=cargo[k]||0;}
+  const s=siteById(j.site),km=kmBetween(DEPOT,s);
+  t.state='loading';t.mission='supply';t.dest=j.id;t.hours=truckH(km);t.km=km;t.t0=S.t;t.t1=S.t+T_LOAD;
+  const cost=Math.round(km*2*1.1);S.cash-=cost;todayCost(cost);
+  log('«'+t.name+'» تحمّل '+w.toFixed(1)+' طن إلى «'+s.name+'». توصل حوالي '+when(S.t+T_LOAD+t.hours)+'.','info');save();return true;
+}
+function serviceWell(wellId){
+  const w=wellById(wellId);if(!w||w.svc)return;const t=S.trucks.find(x=>x.state==='idle');if(!t){toast('ما في شاحنة فاضية','كل الشاحنات مشغولة.','warn');return;}
+  const cost=w.kind==='oil'?3200:450;if(S.cash<cost){toast('الرصيد لا يكفي','الصيانة تكلف '+money(cost)+'.','bad');return;}
+  S.cash-=cost;todayCost(cost);const s=siteById(w.site),km=kmBetween(DEPOT,s);
+  t.state='loading';t.mission='service';t.dest=w.id;t.hours=truckH(km);t.km=km;t.t0=S.t;t.t1=S.t+T_LOAD;w.svc=true;log('فريق صيانة على «'+t.name+'» متجه إلى بئر «'+s.name+'».','info');
+}
+function buy(item,qty){const it=ITEMS[item];if(item==='bitP'&&!S.pdc)return;const cost=it.price*qty;if(S.cash<cost){toast('الرصيد لا يكفي','الشراء يكلف '+money(cost)+'.','bad');return;}S.cash-=cost;todayCost(cost);S.depot[item]+=qty;}
+function owned(id){if(id==='rig2')return S.rigs.filter(r=>r.kind==='water').length>=2;if(id==='oilrig')return S.rigs.some(r=>r.kind==='oil');if(id==='pdc')return S.pdc;if(id==='auto')return S.autoDrill;if(id==='crew')return S.crew>=4;return false;}
+function buyUpg(id){const u=UPG.find(x=>x.id===id),c=u.cost();if(owned(id))return;if(S.cash<c){toast('الرصيد لا يكفي','تحتاج '+money(c)+'.','bad');return;}
+  S.cash-=c;todayCost(c);
+  if(id==='truck')S.trucks.push(mkTruck('شاحنة '+(S.trucks.length+1),12));
+  if(id==='heavy')S.trucks.push(mkTruck('شاحنة ثقيلة '+(S.trucks.filter(t=>t.cap>12).length+1),30));
+  if(id==='rig2')S.rigs.push(mkRig('water','النسر'));
+  if(id==='oilrig'){const r=mkRig('oil','العملاق');r.bit.type=S.pdc?'bitP':'bitT';S.rigs.push(r);}
+  if(id==='pdc')S.pdc=true;if(id==='auto')S.autoDrill=true;if(id==='crew')S.crew++;
+  toast('تم الشراء',u.n+' · '+money(c),'good');log('شراء: '+u.n+' ('+money(c)+').','good');save();}
+
+/* ======================= SIMULATION ======================= */
+function curLedger(){const d=opDay(S.t);let l=S.ledger[S.ledger.length-1];if(!l||l.d!==d){l={d,inc:0,cost:0};S.ledger.push(l);if(S.ledger.length>30)S.ledger.shift();}return l;}
+function todayCost(c){curLedger().cost+=c;} function todayInc(c){curLedger().inc+=c;}
+function advance(h){while(h>1e-9){const d=Math.min(h,0.05);step(d);h-=d;}}
+function step(dt){
+  S.t+=dt;
+  for(const t of S.trucks)stepTruck(t);
+  for(const r of S.rigs)stepRig(r,dt);
+  for(const j of S.jobs)if(j.state==='offer'&&j.expires&&S.t>j.expires){j.state='gone';log('انتهى عرض «'+siteById(j.site).name+'» بدون توقيع.','warn');}
+  S.jobs=S.jobs.filter(j=>j.state!=='gone');
+  const d=Math.floor(S.t/24);if(d>S.lastDay){S.lastDay=d;daily();}
+}
+function truckTarget(t){return t.mission==='service'?siteById((wellById(t.dest)||{}).site||'depot'):siteById((jobById(t.dest)||{}).site||'depot');}
+function stepTruck(t){
+  if(t.state==='idle'||S.t<t.t1)return;
+  if(t.state==='loading'){t.state='out';t.t0=S.t;t.t1=S.t+t.hours;return;}
+  if(t.state==='out'){
+    if(t.mission==='supply'){const j=jobById(t.dest);if(j&&j.state==='active'){for(const k of ITEM_KEYS){j.stock[k]+=t.cargo[k];t.cargo[k]=0;}log('«'+t.name+'» فرّغت حمولتها في «'+siteById(j.site).name+'».','good');}}
+    t.state='unload';t.t0=S.t;t.t1=S.t+(t.mission==='service'?T_SERVICE:T_UNLOAD);return;
+  }
+  if(t.state==='unload'){if(t.mission==='service'){const w=wellById(t.dest);if(w){w.cond=100;w.svc=false;log('صيانة بئر «'+siteById(w.site).name+'» اكتملت.','good');}}t.state='back';t.t0=S.t;t.t1=S.t+t.hours;return;}
+  if(t.state==='back'){for(const k of ITEM_KEYS){S.depot[k]+=t.cargo[k];t.cargo[k]=0;}t.state='idle';t.mission=null;t.dest=null;}
+}
+function stepRig(r,dt){
+  const R=RIG[r.kind],job=r.jobId?jobById(r.jobId):null;
+  if(r.state==='moving'){const p=clamp((S.t-r.t0)/Math.max(1e-4,r.t1-r.t0),0,1);r.x=r.from.x+(r.to.x-r.from.x)*p;r.y=r.from.y+(r.to.y-r.from.y)*p;
+    if(p>=1){if(r.home){r.state='idle';r.at='depot';r.home=false;log('«'+r.name+'» وصلت القاعدة.','info');}else{r.state='rigup';r.t0=S.t;r.t1=S.t+R.rigup;r.at=job.site;log('«'+r.name+'» وصلت «'+siteById(job.site).name+'». تركيب الحفارة '+dur(R.rigup)+'.','info');toast('وصلت الحفارة','«'+r.name+'» بـ«'+siteById(job.site).name+'». بلّش التركيب.','good');}}
+    return;}
+  if(!job)return;
+  if(r.state==='rigup'&&S.t>=r.t1){r.state='drilling';log('بدأ الحفر في «'+siteById(job.site).name+'».','good');if(!S.seenCon){S.seenCon=1;toast('بلّش الحفر','افتح صفحة «العمليات» واضبط الثقل والدوران والضخ حسب كل طبقة.','good');}return;}
+  if(r.state==='tripping'&&S.t>=r.t1){r.bit={type:r.nextBit,life:100};r.state='drilling';return;}
+  if(r.state==='casing'&&S.t>=r.t1){r.state='drilling';return;}
+  if(r.state==='wait'&&S.t>=r.t1){r.state='drilling';if(r.after==='stuck'){r.after=null;raise('stuck',job);}return;}
+  if(r.state==='drilling')drill(r,job,dt);
+}
+function setStall(job,reason){if(job.stall===reason)return;job.stall=reason;if(reason){const s=siteById(job.site).name;log('توقف الحفر في «'+s+'»: '+STALL[reason]+'.','bad');toast('توقف الحفر · '+s,STALL[reason]+'. ابعت شحنة إمداد.','bad');}}
+function drill(r,job,dt){
+  const R=RIG[r.kind],l=layerAt(job,job.depth),fm=FM[l.r],c=ctlOf(r),o=opt(fm),s=siteById(job.site).name;
+  if(S.autoDrill&&r.auto!==false){const k=Math.min(1,dt*3);c.wob+=(o.wob-7-c.wob)*k;c.rpm+=(o.rpm+7-c.rpm)*k;c.pump+=(Math.min(100,o.pump+12)-c.pump)*k;}
+  else if(OFF&&(r.cut||0)>65&&c.pump<95){c.pump=Math.min(100,c.pump+6*dt);}
+  if(job.depth-job.cased>=R.open-1e-6){
+    if(job.stock[R.casing]>=1){job.stock[R.casing]--;job.cased=Math.min(job.cased+ITEMS[R.casing].len,job.depth);r.state='casing';r.t1=S.t+R.ctime;setStall(job,null);return;}
+    setStall(job,'casing');return;}
+  if(r.bit.life<=0){const b=job.stock.bitP>0?'bitP':(job.stock.bitT>0?'bitT':null);if(!b){setStall(job,'bit');return;}
+    job.stock[b]--;r.nextBit=b;r.state='tripping';r.t1=S.t+R.trip+job.depth/R.tripRate;setStall(job,null);log('سحب المواسير لتبديل رأس الحفر في «'+s+'» ('+dur(r.t1-S.t)+').','info');return;}
+  if(job.lay!==l.from){const first=job.lay===undefined;job.lay=l.from;
+    if(!first){log('«'+s+'»: دخلنا '+fm.n+' ('+fm.code+') على '+Math.round(job.depth)+' م.','info');if(S.sel===job.id)toast('طبقة جديدة · '+fm.n,fm.lith+'. المقاومة '+fm.ucs+' ميغاباسكال. عدّل الثقل والدوران.','warn');}}
+  if(fm.frac&&!job.flags['l'+l.from]){raise('loss',job);return;}
+  if(fm.kick&&!job.flags['k'+l.from]){job.flags['k'+l.from]=1;if(rng()<fm.kick){raise('kick',job);return;}}
+  const B=BIT[r.bit.type],e=effAt(c,fm),rop=ropFor(r.kind,r.bit.type,fm,e);
+  const mpm=R.mpm*(0.45+c.pump/90)*fracMul(job,l);
+  let dm=rop*dt;dm=Math.min(dm,job.target-job.depth,job.cased+R.open-job.depth,l.to-job.depth+0.0001);
+  if(job.stock.diesel<dm*R.dpm){setStall(job,'diesel');job.rop=0;return;}
+  if(job.stock.mud<dm*mpm){setStall(job,'mud');job.rop=0;return;}
+  setStall(job,null);
+  job.stock.diesel-=dm*R.dpm;job.stock.mud-=dm*mpm;r.bit.life-=B.wear(fm)*wearMul(c,fm)*dm;
+  job.depth+=dm;job.rop=rop;r.e=e;S.stats.meters+=dm;
+  const need=o.pump-6+rop*1.5;
+  r.cut=clamp((r.cut||0)+(c.pump<need?(need-c.pump)*1.1:-((c.pump-need)*0.8+4))*dt,0,100);
+  if(r.cut>=100){r.cut=60;raise('stuck',job);return;}
+  if(fm.swell&&c.wob>o.wob+22&&rng()<0.06*fm.swell*dt){raise('stuck',job);return;}
+  if(fm.aq&&job.kind==='water'&&!job.flags.w){job.flags.w=1;log('وصلنا لخزان المياه الجوفي ('+fm.n+') في «'+s+'» على '+Math.round(job.depth)+' م.','good');toast('ماء!','الحفر دخل خزان '+fm.code+' في «'+s+'».','good');}
+  if(fm.oil&&!job.flags.o){job.flags.o=1;log('ظهور زيت في عيّنات الحفر ب«'+s+'».','good');toast('ظهور نفط','العيّنات من «'+s+'» فيها زيت.','good');}
+  if(r.bit.life<=0)log('رأس الحفر في «'+s+'» انتهى عمره بعد '+fm.n+'.','warn');
+  const open=job.depth-job.cased;
+  if(fm.cave&&open>12&&rng()<0.04*dt){const loss=Math.min(rr(2,6),open-1);job.depth-=loss;log('انهيار جزئي لجدار البئر في «'+s+'» (−'+loss.toFixed(1)+' م). الرسوبيات المفككة بدها تغليف بكير.','bad');}
+  if(job.depth>=job.target-1e-6)complete(job,r);
+}
+function complete(job,r){
+  job.depth=job.target;job.state='done';job.doneAt=S.t;
+  const late=S.t>job.deadline,early=job.deadline-S.t>48;const pay=late?Math.round(job.reward*0.6):Math.round(job.reward*(early?1.1:1));
+  S.cash+=pay;todayInc(pay);S.stats.earned+=pay;S.stats.done++;S.rep=clamp(S.rep+(late?-1:1),0,5);
+  const s=siteById(job.site);
+  S.wells.push({id:nid('W'),site:job.site,kind:job.kind,cond:100,depth:job.target,built:S.t,client:job.client,income:job.kind==='oil'?1500:Math.round(60+job.target*0.3),svc:false});
+  let back=false;for(const k of ITEM_KEYS){if(job.stock[k]>0.5){S.depot[k]+=Math.floor(job.stock[k]);back=true;}job.stock[k]=0;}
+  r.state='idle';r.jobId=null;r.at=job.site;job.rig=null;
+  log('اكتمل بئر «'+s.name+'» على '+job.target+' م. الدفعة '+money(pay)+(late?' (متأخر −40%)':early?' (تسليم مبكر +10%)':'')+'.','good');
+  if(back)log('المواد الفائضة رجعت للمستودع.','info');
+  toast('اكتمل البئر · '+s.name,money(pay)+(late?' · التأخير خفّض السمعة':' · السمعة +1'),late?'warn':'good');save();
+}
+function dailyNet(){let inc=0;for(const w of S.wells)inc+=w.income*(w.cond>=40?1:0.35);let wg=S.trucks.length*60;for(const r of S.rigs)wg+=r.state==='idle'&&r.at==='depot'?RIG[r.kind].wage*.4:RIG[r.kind].wage;return{inc,wg};}
+function daily(){
+  const {inc,wg}=dailyNet();S.cash+=inc-wg;todayInc(inc);todayCost(wg);
+  for(const w of S.wells)w.cond=Math.max(0,w.cond-(w.kind==='oil'?3.2:2.4));
+  for(const j of S.jobs)if(j.state==='active'&&S.t>j.deadline&&!j.flags.late){j.flags.late=1;log('تجاوزنا مهلة عقد «'+siteById(j.site).name+'». الدفعة رح تنقص 40%.','bad');}
+  for(const w of S.wells){if(w.cond<40&&!w.warned){w.warned=1;log('بئر «'+siteById(w.site).name+'» يحتاج صيانة. الدخل نازل.','warn');}else if(w.cond>=40)w.warned=0;}
+  if(S.jobs.filter(j=>j.state==='offer').length<5&&rng()<0.75)genContract();
+  if(S.cash<0)toast('الرصيد بالسالب','الرواتب مستمرة. سلّم عقد بسرعة.','bad');
+}
+
+/* ======================= INCIDENTS ======================= */
+const INC_SECS=45;
+const INC={
+  kick:{t:'اندفاع ضغط بالبئر!',d:'سوائل الطبقة دخلت البئر وضغط المواسير عم يطلع. إذا ما سكّرت بسرعة ممكن يصير انفجار.',crew:'choke',ch:[
+    {k:'bop',n:'سكّر مانع الانفجار وثقّل الطين',s:'40 كيس طين · 3 ساعات'},
+    {k:'choke',n:'سكّر ونفّس عبر الخانق',s:'بدون مواد · 8 ساعات'},
+    {k:'go',n:'تجاهل وكمّل حفر',s:'خطر انفجار البئر وغرامة',bad:1}]},
+  stuck:{t:'علقت المواسير!',d:'القطع الصخرية والطين المنتفخ مسكوا المواسير. لازم تحررها قبل ما تنحبس.',crew:'oil',ch:[
+    {k:'jar',n:'شدّ واهتزاز (جار)',s:'ساعة · نجاح 55%'},
+    {k:'oil',n:'ضخ زيت تحرير وانتظر',s:'20 كيس طين · 5 ساعات · نجاح 85%'},
+    {k:'side',n:'اقطع واحفر جانبي',s:'مضمون · تخسر لحد 20 م ورأس الحفر · 12 ساعة',bad:1}]},
+  loss:{t:'فقدان دوران الطين',d:'الطين عم يهرب بشقوق الصخر. الاستهلاك تضاعف وإذا ما عالجته رح يخلص مخزونك.',crew:'low',ch:[
+    {k:'lcm',n:'ضخ مواد سدّ (LCM)',s:'30 كيس طين · ساعتين · الاستهلاك يرجع ×1.2'},
+    {k:'low',n:'خفّف الضخ وكمّل',s:'الاستهلاك ×2 · خطر تراكم القطع'},
+    {k:'ign',n:'كمّل متل ما إنت',s:'الاستهلاك يضل عالي',bad:1}]},
+};
+function raise(type,job){
+  const r=rigById(job.rig);if(!r)return;
+  if(type==='loss')job.flags['l'+layerAt(job,job.depth).from]='seen';
+  r.state='inc';log('طارئ في «'+siteById(job.site).name+'»: '+INC[type].t,'bad');
+  if(OFF||S.inc||document.hidden){applyChoice(job,r,INC[type].crew,true);return;}
+  S.inc={type,job:job.id,until:Date.now()+INC_SECS*1000};S.sel=job.id;showIncident(true);
+}
+function showIncident(fresh){
+  const I=S.inc,el=$('#incident');if(!I){el.hidden=true;el.innerHTML='';return;}
+  const D0=INC[I.type],job=jobById(I.job);if(!job){S.inc=null;el.hidden=true;return;}
+  el.innerHTML='<div class="icard'+(fresh?' shake':'')+'" role="alertdialog" aria-modal="true" aria-labelledby="inc-t"><div class="hazard"></div><div class="body">'+
+    '<div class="row"><h3 id="inc-t">'+D0.t+'</h3><span class="chip bad">'+esc(siteById(job.site).name)+' · '+Math.round(job.depth)+' م</span></div><p>'+D0.d+'</p>'+
+    '<div><div class="row muted" style="font-size:13px"><span>الوقت للقرار</span><span class="num" id="inc-s"></span></div><div class="timer"><i id="inc-bar" style="width:100%"></i></div></div>'+
+    D0.ch.map(c=>'<button class="choice'+(c.bad?' risky':'')+'" data-act="inc" data-v="'+c.k+'">'+c.n+'<small>'+c.s+'</small></button>').join('')+
+    '<div class="muted" style="font-size:13px">إذا ما قررت، رئيس الطاقم بيختار: «'+D0.ch.find(c=>c.k===D0.crew).n+'»</div></div></div>';
+  el.hidden=false;
+}
+function resolveInc(k){const I=S.inc;if(!I)return;S.inc=null;$('#incident').hidden=true;$('#incident').innerHTML='';const job=jobById(I.job);if(!job||job.state!=='active')return;const r=rigById(job.rig);if(r)applyChoice(job,r,k,false);}
+function applyChoice(job,r,k,crew){
+  const l=layerAt(job,job.depth),c=ctlOf(r),o=opt(FM[l.r]),s=siteById(job.site).name,pre=crew?'رئيس الطاقم تصرّف: ':'';
+  const wait=(h,txt)=>{r.state='wait';r.t1=S.t+h;r.waitTxt=txt;};r.state='drilling';
+  switch(k){
+    case 'bop':{const u=Math.min(40,job.stock.mud);job.stock.mud-=u;wait(u<40?6:3,'سيطرة على الضغط');log(pre+'سكّرنا مانع الانفجار في «'+s+'» وثقّلنا الطين.','good');toast('تحت السيطرة','قرار صح. الضغط رجع طبيعي.','good');break;}
+    case 'choke':wait(8,'تنفيس الضغط');log(pre+'تنفيس الضغط عبر الخانق في «'+s+'» (8 ساعات).','warn');break;
+    case 'go':{const fine=job.kind==='oil'?60000:8000;S.cash-=fine;todayCost(fine);S.rep=Math.max(0,S.rep-1);job.stock.mud=Math.max(0,job.stock.mud-60);wait(24,'سيطرة على انفجار');log('انفجار بئر في «'+s+'»! غرامة '+money(fine)+' والسمعة −1.','bad');toast('انفجار بالبئر!','غرامة '+money(fine)+' · السمعة −1','bad');break;}
+    case 'jar':if(rng()<.55){wait(1,'تحرير المواسير');log(pre+'الجار حرّر المواسير في «'+s+'».','good');toast('تحررت المواسير','','good');}else{wait(1,'محاولة تحرير');r.after='stuck';log('الجار ما نفع في «'+s+'».','warn');}break;
+    case 'oil':{const u=Math.min(20,job.stock.mud);job.stock.mud-=u;wait(5,'زيت تحرير');if(rng()<.85)log(pre+'زيت التحرير فكّ المواسير في «'+s+'».','good');else{r.after='stuck';log(pre+'زيت التحرير ما كفى في «'+s+'».','warn');}break;}
+    case 'side':{const loss=Math.min(20,Math.max(0,job.depth-job.cased));job.depth-=loss;r.bit.life=0;wait(12,'حفر جانبي');log('حفر جانبي في «'+s+'» (−'+Math.round(loss)+' م ورأس الحفر).','warn');break;}
+    case 'lcm':{const u=Math.min(30,job.stock.mud);job.stock.mud-=u;job.flags['l'+l.from]='lcm';wait(2,'ضخ مواد سدّ');log(pre+'مواد السدّ سكّرت الشقوق في «'+s+'».','good');break;}
+    case 'low':job.flags['l'+l.from]='low';c.pump=Math.min(c.pump,o.pump-8);if(!crew)r.auto=false;log(pre+'خففنا الضخ في «'+s+'». استهلاك الطين ×2.','warn');break;
+    case 'ign':job.flags['l'+l.from]='ign';break;
+  }
+  r.cut=Math.min(r.cut||0,40);if(!OFF)save();dirty();
+}
+
+/* ======================= SAVE ======================= */
+const KEY='umq-save-v3';
+function save(force){if(!S)return;S.wall=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}if(typeof cloudPush==='function')cloudPush(force);}
+function load(){try{const s=localStorage.getItem(KEY);if(!s)return null;const o=JSON.parse(s);if(o&&o.v===3)return o;}catch(e){}return null;}
+/* Online save: one private document per signed-in player, so the same game continues on phone and computer. */
+const CLOUD={doc:null,state:'off',lastPush:0,pushing:false,localWall:0,lastJson:''};
+function syncLabel(){const e=document.getElementById('sync');if(!e)return;const m={off:FB.on?'سجّل دخول من «القائمة» للحفظ الأونلاين':'الحفظ على هالجهاز بس',wait:'عم يتصل بالحفظ الأونلاين…',ok:'☁ محفوظ أونلاين',err:'☁ الحفظ الأونلاين متوقف مؤقتاً'};e.textContent=m[CLOUD.state]||'';e.dataset.s=CLOUD.state;}
+async function cloudPush(force){
+  if(!CLOUD.doc||!S)return;
+  if(!force){if(!CLOUD.timer)CLOUD.timer=setTimeout(()=>{CLOUD.timer=null;cloudPush(true);},3000);return;}
+  if(CLOUD.timer){clearTimeout(CLOUD.timer);CLOUD.timer=null;}
+  if(CLOUD.pushing){CLOUD.again=true;return;}
+  if(FB.user)S.acct=FB.user.uid;
+  const json=JSON.stringify(S);if(json===CLOUD.lastJson)return;
+  CLOUD.pushing=true;
+  try{await CLOUD.doc.set({v:3,wall:S.wall||Date.now(),json});CLOUD.lastJson=json;CLOUD.state='ok';}catch(e){CLOUD.state='err';}
+  CLOUD.pushing=false;syncLabel();if(CLOUD.again){CLOUD.again=false;cloudPush(false);}
+}
+function adoptState(o){
+  S=o;if(!S.sel||!jobById(S.sel)){const a=S.jobs.find(j=>j.state==='active')||S.jobs.find(j=>j.state==='offer');S.sel=a?a.id:null;}
+  const before=S.t,cash0=S.cash,gapH=Math.max(0,(Date.now()-S.wall)/3.6e6*SCALE);
+  if(gapH>0){OFF=true;advance(Math.min(gapH,24*30));OFF=false;}S.wall=Date.now();
+  if(S.inc&&Date.now()>S.inc.until)resolveInc(INC[S.inc.type].crew);else if(S.inc)showIncident(false);
+  sceneKey='';builtKey='';save();dirty();
+  if(FB.user)S.acct=FB.user.uid;
+  toast('كمّلنا لعبتك','جبنا آخر حفظ أونلاين من حسابك.','good');
+  if(gapH>0.2)showAway(gapH,before,cash0);
+}
+/* Phone-app build: online save through Firebase (email + password account). Active only when the app ships window.UMQ_FB and the Firebase SDK. */
+const FB={on:false,auth:null,fs:null,user:null,busy:false,msg:'',pending:null};
+const FB_ERR={'auth/invalid-credential':'الإيميل أو كلمة السر غلط.','auth/wrong-password':'الإيميل أو كلمة السر غلط.','auth/user-not-found':'ما في حساب بهالإيميل. اعمل حساب جديد.','auth/email-already-in-use':'هالإيميل إله حساب. اعمل «دخول».','auth/weak-password':'كلمة السر لازم تكون 6 أحرف أو أكثر.','auth/invalid-email':'الإيميل مش مكتوب صح.','auth/missing-password':'اكتب كلمة السر.','auth/network-request-failed':'ما في اتصال بالنت.','auth/too-many-requests':'محاولات كتير. جرّب بعد شوي.'};
+function fbInit(){
+  if(FB.on)return true;
+  if(!(window.UMQ_FB&&window.UMQ_FB.apiKey&&window.firebase&&firebase.initializeApp))return false;
+  try{firebase.initializeApp(window.UMQ_FB);FB.auth=firebase.auth();FB.fs=firebase.firestore();}catch(e){return false;}
+  FB.on=true;CLOUD.state='off';syncLabel();
+  FB.auth.onAuthStateChanged(u=>{if(!FB.seen){FB.seen=1;if(!u)setTimeout(()=>{if(!FB.user)toast('احفظ لعبتك أونلاين','افتح «القائمة» واعمل حساب بإيميلك، وبتكمّل لعبتك من أي جهاز.','info');},2500);}FB.user=u||null;if(u)fbAttach(u);else{CLOUD.doc=null;CLOUD.lastJson='';CLOUD.state='off';syncLabel();}if(D&&D.menu)openMenu();});
+  return true;
+}
+function fbFresh(){return !S.jobs.some(j=>j.state!=='offer')&&!(S.wells&&S.wells.length)&&S.t<2;}
+async function fbAttach(u){
+  const ref=FB.fs.collection('users').doc(u.uid);
+  const doc={get:async()=>{const x=await ref.get();return{exists:x.exists,data:()=>x.data()};},set:v=>ref.set(v)};
+  CLOUD.doc=null;CLOUD.state='wait';syncLabel();
+  let snap=null;
+  try{snap=await Promise.race([doc.get(),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),10000))]);}catch(e){CLOUD.state='err';syncLabel();setTimeout(()=>{if(FB.user===u)fbAttach(u);},60000);return;}
+  if(FB.user!==u)return;
+  const d=snap.exists?snap.data():null;let remote=null;
+  if(d&&typeof d.json==='string'){try{const o=JSON.parse(d.json);if(o&&o.v===3)remote=o;}catch(e){}}
+  const ready=()=>{CLOUD.doc=doc;CLOUD.state='ok';syncLabel();};
+  if(!remote){ready();cloudPush(true);return;}
+  if(S.acct===u.uid||fbFresh()){
+    if(S.acct!==u.uid||(+d.wall||0)>CLOUD.localWall+1000){ready();CLOUD.lastJson=d.json;adoptState(remote);}
+    else{ready();cloudPush(true);}
+    return;
+  }
+  // this device has its own game in progress and the account has another one: ask which to keep
+  FB.pending={doc,remote,json:d.json,ready};
+  D={choose:1};
+  $('#modal').innerHTML='<div class="mcard" role="dialog" aria-modal="true"><header><h3>عندك لعبتين</h3></header><div class="body"><p style="margin:0 0 12px;line-height:1.8">في لعبة محفوظة على حسابك، وفي لعبة تانية على هالجهاز. أي وحدة بدك تكمّل؟</p><div class="facts">'+
+    '<div class="fact"><label>المحفوظة على حسابك</label><b class="num">'+money(remote.cash)+'</b><span class="muted" style="font-size:12.5px">'+(remote.wells?remote.wells.length:0)+' آبار</span></div>'+
+    '<div class="fact"><label>اللي على هالجهاز</label><b class="num">'+money(S.cash)+'</b><span class="muted" style="font-size:12.5px">'+(S.wells?S.wells.length:0)+' آبار</span></div></div>'+
+    '<p class="muted" style="font-size:13px;margin:12px 0 0">اللعبة اللي ما بتختارها بتنمسح.</p></div><footer><button class="btn" data-act="cl-local">لعبة هالجهاز</button><button class="btn pri" data-act="cl-remote">لعبة حسابي</button></footer></div>';
+  $('#modal').hidden=false;
+}
+function fbChoose(remote){
+  const P=FB.pending;if(!P)return;FB.pending=null;D=null;$('#modal').hidden=true;$('#modal').innerHTML='';
+  P.ready();if(remote){CLOUD.lastJson=P.json;adoptState(P.remote);}else cloudPush(true);
+}
+async function fbAuth(kind){
+  if(!FB.on||FB.busy)return;
+  const em=(($('#fb-em')||{}).value||'').trim(),pw=($('#fb-pw')||{}).value||'';
+  FB.busy=true;FB.msg='';FB.em=em;openMenu();
+  try{
+    if(kind==='in')await FB.auth.signInWithEmailAndPassword(em,pw);
+    else if(kind==='up')await FB.auth.createUserWithEmailAndPassword(em,pw);
+    else if(kind==='reset'){await FB.auth.sendPasswordResetEmail(em);FB.msg='بعتنالك إيميل لتغيير كلمة السر.';}
+    else if(kind==='out'){await FB.auth.signOut();}
+  }catch(e){FB.msg=FB_ERR[e&&e.code]||'صار خطأ. جرّب كمان مرة.';}
+  FB.busy=false;if(D&&D.menu)openMenu();
+}
+function fbMenuHTML(){
+  const st={ok:'☁ لعبتك محفوظة أونلاين. سجّل دخول بنفس الحساب من أي جهاز وبتكمّل نفس اللعبة.',wait:'عم يتصل بالحفظ الأونلاين…',err:'الحفظ الأونلاين متوقف هلأ (ممكن ما في نت). اللعبة محفوظة على هالجهاز وبترجع تتزامن لحالها.'};
+  const msg=FB.msg?'<div style="font-size:13.5px;margin-top:8px;color:var(--warn)">'+esc(FB.msg)+'</div>':'';
+  if(FB.user)return '<div class="muted" style="font-size:14px;line-height:1.8">'+(st[CLOUD.state]||'')+'<br>الحساب: <b style="color:var(--text)">'+esc(FB.user.email||'')+'</b></div>'+msg+'<div class="btns" style="margin-top:10px"><button class="btn sm" data-act="fb-out"'+(FB.busy?' disabled':'')+'>تسجيل خروج</button></div>';
+  return '<div class="muted" style="font-size:14px;margin-bottom:10px;line-height:1.8">اعمل حساب بإيميلك عشان تنحفظ لعبتك أونلاين وتكمّلها من أي جهاز.</div>'+
+    '<div class="fbform"><input id="fb-em" type="email" inputmode="email" autocomplete="email" dir="ltr" placeholder="الإيميل" value="'+esc(FB.em||'')+'"><input id="fb-pw" type="password" autocomplete="current-password" dir="ltr" placeholder="كلمة السر (6 أحرف أو أكثر)"></div>'+msg+
+    '<div class="btns" style="margin-top:10px"><button class="btn sm pri" data-act="fb-in"'+(FB.busy?' disabled':'')+'>دخول</button><button class="btn sm" data-act="fb-up"'+(FB.busy?' disabled':'')+'>حساب جديد</button><button class="lnk" data-act="fb-reset">نسيت كلمة السر</button></div>';
+}
+async function cloudInit(){
+  if(!window.claude||typeof window.claude.use!=='function'){if(!fbInit())syncLabel();return;}
+  CLOUD.state='wait';syncLabel();
+  let db=null,user=null;
+  try{[db,user]=await Promise.all([window.claude.use('db'),window.claude.use('user')]);}catch(e){}
+  const uid=user&&typeof user.id==='function'?await user.id().catch(()=>null):null;
+  if(!db||!uid){CLOUD.state='off';syncLabel();return;}
+  CLOUD.doc=db.doc('data/users/'+uid+'/umq-save');
+  let snap=null;
+  try{snap=await Promise.race([CLOUD.doc.get(),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),10000))]);}catch(e){CLOUD.state='err';syncLabel();return;}
+  const d=snap&&snap.exists?snap.data():null;let remote=null;
+  if(d&&typeof d.json==='string'){try{const o=JSON.parse(d.json);if(o&&o.v===3)remote=o;}catch(e){}}
+  if(remote&&(+d.wall||0)>CLOUD.localWall+1000){CLOUD.lastJson=d.json;CLOUD.state='ok';syncLabel();adoptState(remote);}
+  else{CLOUD.state='ok';syncLabel();await cloudPush(true);}
+}
+
+/* ======================= 2D MAP ======================= */
+const mapC=document.createElement('canvas'),mctx=mapC.getContext('2d');mapC.setAttribute('aria-label','خريطة المواقع');
+let terrain=null,view={s:1,ox:0,oy:0},hover=null;
+function hash(x,y){let h=Math.imul(x,374761393)+Math.imul(y,668265263)|0;h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296;}
+function vn(x,y){const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);const a=hash(xi,yi),b=hash(xi+1,yi),c=hash(xi,yi+1),d=hash(xi+1,yi+1);return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;}
+function elev(x,y){let s=0,a=.5,f=1/150;for(let i=0;i<5;i++){s+=a*vn(x*f+11,y*f+7);f*=2.1;a*=.5;}const dx=(x-500)/500,dy=(y-380)/380;return s-0.08*(dx*dx+dy*dy);}
+function buildTerrain(){
+  const dpr=2,c=document.createElement('canvas');c.width=MAPW*dpr;c.height=MAPH*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+  const gw=250,gh=175,img=g.createImageData(gw,gh),E=[];
+  for(let j=0;j<=gh;j++){E[j]=[];for(let i=0;i<=gw;i++)E[j][i]=elev(i*MAPW/gw,j*MAPH/gh);}
+  for(let j=0;j<gh;j++)for(let i=0;i<gw;i++){const e=E[j][i],sh=(E[j][i+1]-E[j+1][i])*9;const k=(j*gw+i)*4;
+    // basalt harra in the north-east
+    const bas=clamp(((i/gw)-0.55)*3,0,1)*clamp((0.45-(j/gh))*3,0,1);
+    const base=[227,210,171],low=[207,186,140],dark=[96,90,86];const t=clamp((e-.3)*2.2,0,1);
+    for(let q=0;q<3;q++){let v=low[q]+(base[q]-low[q])*t;v=v*(1-bas*.75)+dark[q]*bas*.75;img.data[k+q]=clamp(v+sh*40,0,255);}img.data[k+3]=255;}
+  const tmp=document.createElement('canvas');tmp.width=gw;tmp.height=gh;tmp.getContext('2d').putImageData(img,0,0);g.imageSmoothingEnabled=true;g.drawImage(tmp,0,0,MAPW,MAPH);
+  const st=6,cw=Math.ceil(MAPW/st),ch=Math.ceil(MAPH/st),F=[];for(let j=0;j<=ch;j++){F[j]=[];for(let i=0;i<=cw;i++)F[j][i]=elev(i*st,j*st);}
+  for(let lv=0.2,li=0;lv<1;lv+=0.03,li++){g.beginPath();
+    for(let j=0;j<ch;j++)for(let i=0;i<cw;i++){const a=F[j][i],b=F[j][i+1],c2=F[j+1][i+1],d=F[j+1][i];const idx=(a>lv?8:0)|(b>lv?4:0)|(c2>lv?2:0)|(d>lv?1:0);if(idx===0||idx===15)continue;
+      const x=i*st,y=j*st,lp=(p,q)=>(lv-p)/(q-p);const T=[x+st*lp(a,b),y],Rr=[x+st,y+st*lp(b,c2)],B=[x+st*lp(d,c2),y+st],Lf=[x,y+st*lp(a,d)];
+      const sg={1:[Lf,B],2:[B,Rr],3:[Lf,Rr],4:[T,Rr],5:[Lf,T,B,Rr],6:[T,B],7:[Lf,T],8:[Lf,T],9:[T,B],10:[T,Rr,Lf,B],11:[T,Rr],12:[Lf,Rr],13:[B,Rr],14:[Lf,B]}[idx];
+      for(let s=0;s<sg.length;s+=2){g.moveTo(sg[s][0],sg[s][1]);g.lineTo(sg[s+1][0],sg[s+1][1]);}}
+    const major=li%5===0;g.strokeStyle=major?'rgba(120,86,46,.42)':'rgba(140,104,60,.2)';g.lineWidth=major?1:.6;g.stroke();}
+  g.strokeStyle='rgba(110,140,150,.35)';g.lineWidth=2.2;
+  [[[40,420],[190,450],[260,520],[330,600],[420,690]],[[960,40],[880,150],[820,240],[760,300],[690,330],[620,420]],[[300,0],[330,90],[300,160],[360,230]]].forEach(p=>{g.beginPath();g.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length-1;i++){const mx=(p[i][0]+p[i+1][0])/2,my=(p[i][1]+p[i+1][1])/2;g.quadraticCurveTo(p[i][0],p[i][1],mx,my);}const e=p[p.length-1];g.lineTo(e[0],e[1]);g.stroke();});
+  const gs=50/KM;g.strokeStyle='rgba(60,50,35,.16)';g.lineWidth=.8;g.font='500 10px "IBM Plex Mono",monospace';g.fillStyle='rgba(60,45,25,.55)';
+  for(let x=gs,i=1;x<MAPW;x+=gs,i++){g.beginPath();g.moveTo(x,0);g.lineTo(x,MAPH);g.stroke();g.fillText(String(i*50),x+3,12);}
+  for(let y=gs,i=1;y<MAPH;y+=gs,i++){g.beginPath();g.moveTo(0,y);g.lineTo(MAPW,y);g.stroke();g.fillText(String(i*50),4,y-3);}
+  g.font='600 13px Cairo,Tahoma,sans-serif';g.fillStyle='rgba(235,229,214,.55)';g.direction='rtl';g.textAlign='center';g.fillText('حرّة بازلتية',800,90);
+  terrain=c;
+}
+function sizeCanvas(c){const r=c.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));if(c.width!==w||c.height!==h){c.width=w;c.height=h;}return{w:r.width,h:r.height,dpr};}
+function siteState(s){const j=S.jobs.find(x=>x.site===s.id&&x.state==='active');const w=S.wells.filter(x=>x.site===s.id);if(j)return{k:'active',job:j,wells:w};const o=S.jobs.find(x=>x.site===s.id&&x.state==='offer');if(o)return{k:'offer',job:o,wells:w};if(w.length)return{k:'well',wells:w};return{k:'none',wells:w};}
+function truckPos(t){if(t.state==='idle'||t.state==='loading')return{x:DEPOT.x,y:DEPOT.y,a:0};const tg=truckTarget(t);if(t.state==='unload')return{x:tg.x,y:tg.y,a:0};const p=clamp((S.t-t.t0)/Math.max(1e-4,t.t1-t.t0),0,1);const[a,b]=t.state==='out'?[DEPOT,tg]:[tg,DEPOT];return{x:a.x+(b.x-a.x)*p,y:a.y+(b.y-a.y)*p,a:Math.atan2(b.y-a.y,b.x-a.x)};}
+function label(g,text,x,y,ic,strong){g.save();g.translate(x,y);g.scale(ic,ic);g.font=(strong?'700 ':'600 ')+'12.5px Cairo,Tahoma,sans-serif';g.textAlign='center';g.direction='rtl';g.lineWidth=3.5;g.strokeStyle='rgba(235,224,196,.92)';g.strokeText(text,0,0);g.fillStyle=strong?'#1a0d02':'#3a2c1c';g.fillText(text,0,0);g.restore();}
+function drawMap(now){
+  if(!mapC.isConnected)return;const {w,h,dpr}=sizeCanvas(mapC);const g=mctx;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#0a1318';g.fillRect(0,0,w,h);
+  const s=Math.min(w/MAPW,h/MAPH),ox=(w-MAPW*s)/2,oy=(h-MAPH*s)/2;view={s,ox,oy};g.save();g.translate(ox,oy);g.scale(s,s);if(terrain)g.drawImage(terrain,0,0,MAPW,MAPH);
+  const ic=clamp(0.9/s,0.9,2.2);
+  for(const st of SITES){const ss=siteState(st),act=ss.k==='active';g.beginPath();g.moveTo(DEPOT.x,DEPOT.y);g.lineTo(st.x,st.y);g.strokeStyle=act?'rgba(40,28,18,.85)':ss.k==='none'?'rgba(60,45,30,.18)':'rgba(60,45,30,.45)';g.lineWidth=(act?3:1.6)*ic;g.setLineDash(act?[]:[6*ic,5*ic]);g.stroke();}
+  g.setLineDash([]);
+  g.save();g.translate(DEPOT.x,DEPOT.y);g.scale(ic,ic);g.fillStyle='#13212a';g.strokeStyle='#ebe5d6';g.lineWidth=2;g.fillRect(-16,-13,32,26);g.strokeRect(-16,-13,32,26);g.fillStyle='#ebe5d6';g.fillRect(-11,-8,9,7);g.fillRect(2,-8,9,7);g.fillStyle='#ff7a1a';g.fillRect(-11,3,22,4);g.restore();
+  label(g,'قاعدة الشركة',DEPOT.x,DEPOT.y+26*ic,ic,true);
+  const selJob=S.sel?jobById(S.sel):null;
+  for(const st of SITES){const ss=siteState(st),selected=selJob&&selJob.site===st.id;g.save();g.translate(st.x,st.y);g.scale(ic,ic);
+    if(selected){const p=(now/1200)%1;g.beginPath();g.arc(0,0,14+p*16,0,Math.PI*2);g.strokeStyle='rgba(255,122,26,'+(1-p)*0.8+')';g.lineWidth=2;g.stroke();}
+    (ss.wells||[]).forEach((wl,i)=>{g.beginPath();g.arc(-14-i*9,-10,4.5,0,Math.PI*2);g.fillStyle=wl.kind==='oil'?'#1c1712':'#5bbbe0';g.fill();g.strokeStyle=wl.cond<40?'#ef5f52':'#0d171d';g.lineWidth=1.4;g.stroke();});
+    if(ss.k==='active'){g.rotate(Math.PI/4);g.fillStyle='#ff7a1a';g.strokeStyle='#1a0d02';g.lineWidth=1.5;g.fillRect(-7,-7,14,14);g.strokeRect(-7,-7,14,14);if(ss.job.stall){g.rotate(-Math.PI/4);g.fillStyle='#ef5f52';g.beginPath();g.arc(9,-9,4.5,0,Math.PI*2);g.fill();}}
+    else if(ss.k==='offer'){g.rotate(Math.PI/4);g.fillStyle='rgba(13,23,29,.75)';g.strokeStyle='#b88a2e';g.lineWidth=2.2;g.fillRect(-6,-6,12,12);g.strokeRect(-6,-6,12,12);}
+    else{g.beginPath();g.arc(0,0,2.5,0,Math.PI*2);g.fillStyle='rgba(60,45,30,.45)';g.fill();}
+    g.restore();if(ss.k!=='none'||hover===st.id)label(g,st.name,st.x,st.y+19*ic,ic,ss.k==='active');}
+  for(const r of S.rigs){if(r.at==='depot'&&r.state==='idle')continue;g.save();g.translate(r.x,r.y-(r.state==='moving'?0:4*ic));const k=ic*(r.kind==='oil'?1.3:1);g.scale(k,k);
+    const dr=r.state==='drilling'&&!(jobById(r.jobId)||{}).stall;g.strokeStyle='#13212a';g.lineWidth=2.2;g.lineJoin='round';g.beginPath();g.moveTo(-7,4);g.lineTo(0,-20);g.lineTo(7,4);g.moveTo(-4.5,-4);g.lineTo(4.5,-4);g.moveTo(-3,-11);g.lineTo(3,-11);g.stroke();
+    g.fillStyle=dr?'#ff7a1a':'#ebe5d6';g.beginPath();g.arc(0,-20,2.6,0,Math.PI*2);g.fill();if(dr){const p=(now/700)%1;g.beginPath();g.arc(0,-20,3+p*7,0,Math.PI*2);g.strokeStyle='rgba(255,122,26,'+(1-p)+')';g.lineWidth=1.4;g.stroke();}g.restore();}
+  for(const t of S.trucks){if(t.state==='idle'||t.state==='loading')continue;const p=truckPos(t);g.save();g.translate(p.x,p.y);g.scale(ic,ic);const a=p.a||0;g.rotate(a);if(Math.cos(a)<0)g.scale(1,-1);g.fillStyle=t.mission==='service'?'#5bbbe0':'#ebe5d6';g.fillRect(-10,-5,13,9);g.fillStyle='#ff7a1a';g.fillRect(3,-4,6,8);g.strokeStyle='#13212a';g.lineWidth=1.2;g.strokeRect(-10,-5,19,9);g.restore();}
+  g.restore();
+  const sb=50/KM*s,bx=18;g.fillStyle='rgba(13,23,29,.82)';g.fillRect(bx-10,h-42,sb+20,30);g.strokeStyle='#ebe5d6';g.lineWidth=1.5;g.beginPath();g.moveTo(bx,h-20);g.lineTo(bx+sb,h-20);g.moveTo(bx,h-24);g.lineTo(bx,h-16);g.moveTo(bx+sb,h-24);g.lineTo(bx+sb,h-16);g.stroke();g.fillStyle='#ebe5d6';g.font='500 10px "IBM Plex Mono",monospace';g.textAlign='center';g.fillText('50 km',bx+sb/2,h-27);
+}
+function mapHit(ev){const r=mapC.getBoundingClientRect(),mx=(ev.clientX-r.left-view.ox)/view.s,my=(ev.clientY-r.top-view.oy)/view.s;let best=null,bd=1e9;for(const s of [DEPOT,...SITES]){const d=Math.hypot(s.x-mx,s.y-my);if(d<bd){bd=d;best=s;}}return bd*view.s<26?best:null;}
+mapC.addEventListener('mousemove',ev=>{const s=mapHit(ev),tip=$('#tip');hover=s?s.id:null;if(!tip)return;if(!s){tip.hidden=true;mapC.style.cursor='crosshair';return;}mapC.style.cursor='pointer';
+  let html='<b>'+esc(s.name)+'</b>';if(s.id==='depot')html+='<span class="muted">المستودع والورشة</span>';else{const ss=siteState(s),km=kmBetween(DEPOT,s);html+='<span class="muted">'+Math.round(km)+' كم · الشاحنة '+dur(truckH(km))+'</span>';
+    if(ss.k==='active')html+='<div>حفر: '+Math.round(ss.job.depth)+' / '+ss.job.target+' م'+(ss.job.stall?' · <span style="color:var(--bad)">متوقف</span>':'')+'</div>';if(ss.k==='offer')html+='<div style="color:var(--brass)">عرض: '+esc(ss.job.title)+' · '+money(ss.job.reward)+'</div>';if(ss.wells.length)html+='<div style="color:var(--water)">'+ss.wells.length+' بئر منتج</div>';}
+  tip.innerHTML=html;tip.hidden=false;const br=mapC.getBoundingClientRect();let x=ev.clientX-br.left+14,y=ev.clientY-br.top+14;if(x+200>br.width)x=ev.clientX-br.left-210;if(y+100>br.height)y=ev.clientY-br.top-100;tip.style.left=x+'px';tip.style.top=y+'px';});
+mapC.addEventListener('mouseleave',()=>{const t=$('#tip');if(t)t.hidden=true;hover=null;});
+mapC.addEventListener('click',ev=>{const s=mapHit(ev);if(!s)return;if(s.id==='depot'){go('depot');return;}const j=S.jobs.find(x=>x.site===s.id&&x.state==='active');const o=S.jobs.find(x=>x.site===s.id&&x.state==='offer');
+  if(j){S.sel=j.id;go('ops');}else if(o){S.sel=o.id;S.focus=null;go('contracts');}else if(S.wells.some(w=>w.site===s.id))go('wells');});
+
+/* ======================= WELL SECTION ======================= */
+const xC=document.createElement('canvas'),xctx=xC.getContext('2d');xC.setAttribute('aria-label','مقطع البئر');const pats={};
+function pattern(g,type,col){const key=type+col;if(pats[key])return pats[key];const c=document.createElement('canvas');c.width=c.height=16;const p=c.getContext('2d');p.fillStyle=col;p.fillRect(0,0,16,16);p.strokeStyle='rgba(0,0,0,.22)';p.fillStyle='rgba(0,0,0,.22)';p.lineWidth=1;
+  if(type==='dots')[[3,3],[11,7],[6,12],[14,14]].forEach(([x,y])=>{p.beginPath();p.arc(x,y,1,0,7);p.fill();});
+  if(type==='dash'){p.beginPath();p.moveTo(1,4);p.lineTo(7,4);p.moveTo(9,12);p.lineTo(15,12);p.stroke();}
+  if(type==='brick'){p.beginPath();p.moveTo(0,.5);p.lineTo(16,.5);p.moveTo(0,8.5);p.lineTo(16,8.5);p.moveTo(4.5,0);p.lineTo(4.5,8);p.moveTo(12.5,8);p.lineTo(12.5,16);p.stroke();}
+  if(type==='chert'){p.beginPath();p.moveTo(0,.5);p.lineTo(16,.5);p.moveTo(0,8.5);p.lineTo(16,8.5);p.stroke();p.fillStyle='rgba(40,35,30,.55)';p.beginPath();p.ellipse(8,4.5,3,1.4,0,0,7);p.fill();p.beginPath();p.ellipse(3,12.5,2.4,1.2,0,0,7);p.fill();}
+  if(type==='vee'){p.strokeStyle='rgba(255,255,255,.18)';p.beginPath();p.moveTo(2,4);p.lineTo(5,9);p.lineTo(8,4);p.moveTo(10,11);p.lineTo(13,15);p.lineTo(16,11);p.stroke();}
+  return pats[key]=g.createPattern(c,'repeat');}
+function niceStep(range){const raw=range/7,p=Math.pow(10,Math.floor(Math.log10(raw)));for(const m of[1,2,2.5,5,10])if(m*p>=raw)return m*p;return 10*p;}
+function drawXsec(now){
+  if(!xC.isConnected)return;const {w,h,dpr}=sizeCanvas(xC);const g=xctx;g.setTransform(dpr,0,0,dpr,0,0);g.fillStyle='#0a1318';g.fillRect(0,0,w,h);
+  const job=S.sel?jobById(S.sel):null;if(!job)return;
+  const top=34,bot=h-12,maxD=Math.max(job.target*1.1,job.depth+10),Y=d=>top+(d/maxD)*(bot-top),xL=52,xR=w-8,cx=xL+(xR-xL)*0.3;
+  g.fillStyle='#1d2b33';g.fillRect(0,0,w,top);
+  for(const l of job.layers){if(l.from>=maxD)break;const y0=Y(l.from),y1=Y(Math.min(l.to,maxD)),fm=FM[l.r];g.fillStyle=pattern(g,fm.p,fm.c);g.fillRect(xL,y0,xR-xL,y1-y0);g.fillStyle='rgba(0,0,0,.3)';g.fillRect(xL,y0,xR-xL,1);
+    if(y1-y0>16){g.font='700 12px Cairo,sans-serif';g.direction='rtl';g.textAlign='right';const lbl=fm.n+' · '+fm.code;const tw=g.measureText(lbl).width;g.fillStyle='rgba(10,19,24,.78)';g.fillRect(xR-tw-14,y0+4,tw+10,18);g.fillStyle='#eee9dd';g.fillText(lbl,xR-9,y0+17);}}
+  g.fillStyle='rgba(10,19,24,.35)';g.fillRect(xL,Y(job.target),xR-xL,bot-Y(job.target));
+  const st=niceStep(maxD);g.font='500 10.5px "IBM Plex Mono",monospace';g.textAlign='right';g.direction='ltr';for(let d=0;d<=maxD;d+=st){const y=Y(d);g.fillStyle='#97a9b0';g.fillText(d+' m',xL-6,y+3.5);g.fillStyle='rgba(238,233,221,.35)';g.fillRect(xL,y,5,1);}
+  const ty=Y(job.target);g.strokeStyle='#ff7a1a';g.setLineDash([5,4]);g.lineWidth=1.3;g.beginPath();g.moveTo(xL,ty);g.lineTo(xR,ty);g.stroke();g.setLineDash([]);
+  g.fillStyle='#ff7a1a';g.font='700 12px Cairo,sans-serif';g.direction='rtl';g.textAlign='left';g.fillText('الهدف '+job.target+' م',xL+6,ty-5);
+  const hw=job.kind==='oil'?9:7,dy=Y(job.depth);
+  if(job.depth>0){g.fillStyle='#4a3524';g.fillRect(cx-hw,top,hw*2,dy-top);const mud=g.createLinearGradient(0,top,0,dy);mud.addColorStop(0,'#7a5a3c');mud.addColorStop(1,'#5b4029');g.fillStyle=mud;g.fillRect(cx-hw+2,top,hw*2-4,dy-top);}
+  if(job.cased>0){const cy=Y(job.cased);g.fillStyle='#b9c3c7';g.fillRect(cx-hw-2,top,2.5,cy-top);g.fillRect(cx+hw-.5,top,2.5,cy-top);g.fillRect(cx-hw-5,cy-2,5,3);g.fillRect(cx+hw,cy-2,5,3);}
+  const rig=job.rig?rigById(job.rig):null,onSite=rig&&['drilling','tripping','casing','rigup','wait','inc'].includes(rig.state);
+  if(onSite){const by=rig.state==='tripping'?top+(dy-top)*(0.5+0.5*Math.cos(now/900)):dy;g.fillStyle='#d9dde0';g.fillRect(cx-1.5,top-20,3,by-top+20);const dr=rig.state==='drilling'&&!job.stall;
+    g.save();g.translate(cx,by);if(dr){const gl=g.createRadialGradient(0,0,0,0,0,16);gl.addColorStop(0,'rgba(255,122,26,.75)');gl.addColorStop(1,'rgba(255,122,26,0)');g.fillStyle=gl;g.beginPath();g.arc(0,0,16,0,7);g.fill();}
+    g.fillStyle='#ff7a1a';g.beginPath();g.moveTo(-hw+1,-6);g.lineTo(hw-1,-6);g.lineTo(0,3);g.closePath();g.fill();g.restore();}
+  g.fillStyle='#c2a878';g.fillRect(0,top-3,w,3);
+  g.direction='ltr';g.textAlign='left';g.font='600 14px "IBM Plex Mono",monospace';g.fillStyle='#eee9dd';g.fillText(job.depth.toFixed(1)+' m',10,22);
+}
+
+/* ======================= 3D STAGE ======================= */
+const HAS3D=(function(){if(typeof THREE==='undefined')return false;try{const c=document.createElement('canvas');return!!(c.getContext('webgl2')||c.getContext('webgl'));}catch(e){return false;}})();
+let R3=null,scene=null,cam=null,sceneKey='',W={},stageEl=null;
+const orb={az:2.3,el:0.3,dist:30,tdist:30,tgt:null,drag:null,idleAt:0};
+const MC={};
+function mat(c,r,m,em){r=r==null?.8:r;m=m||0;const k=c+'|'+r+'|'+m+'|'+(em||'');if(!MC[k])MC[k]=new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m,emissive:em||'#000000'});return MC[k];}
+function box(w,h,d,m,x,y,z,p){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;if(p)p.add(o);return o;}
+function cyl(rt,rb,h,m,seg,p){const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg||16),m);o.castShadow=true;o.receiveShadow=true;if(p)p.add(o);return o;}
+let UP=null;
+function beam(a,b,t,m,p){const d=new THREE.Vector3().subVectors(b,a);const len=d.length();const o=new THREE.Mesh(new THREE.BoxGeometry(t,len,t),m);o.position.copy(a).add(b).multiplyScalar(.5);o.quaternion.setFromUnitVectors(UP||(UP=new THREE.Vector3(0,1,0)),d.normalize());o.castShadow=true;if(p)p.add(o);return o;}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(rep)t.repeat.set(rep[0],rep[1]);t.encoding=THREE.sRGBEncoding;t.anisotropy=8;return t;}
+function speck(g,w,h,n,cols){for(let i=0;i<n;i++){g.fillStyle=cols[i%cols.length];g.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,1+Math.random()*2);}}
+function sandTex(rep){return canvasTex(512,512,(g,w,h)=>{g.fillStyle='#cfb27f';g.fillRect(0,0,w,h);speck(g,w,h,14000,['rgba(140,105,60,.25)','rgba(255,240,210,.22)','rgba(110,85,55,.18)']);for(let i=0;i<260;i++){g.fillStyle='rgba(85,70,55,.55)';g.beginPath();g.arc(Math.random()*w,Math.random()*h,.6+Math.random()*1.8,0,7);g.fill();}},rep);}
+function gravelTex(rep){return canvasTex(256,256,(g,w,h)=>{g.fillStyle='#a8998a';g.fillRect(0,0,w,h);speck(g,w,h,9000,['rgba(60,55,50,.35)','rgba(230,225,215,.3)','rgba(120,105,90,.35)']);},rep);}
+function roadTex(rep){return canvasTex(512,128,(g,w,h)=>{g.fillStyle='#3a3b3d';g.fillRect(0,0,w,h);speck(g,w,h,6000,['rgba(0,0,0,.25)','rgba(255,255,255,.08)']);g.fillStyle='#e9e6dc';g.fillRect(0,10,w,4);g.fillRect(0,h-14,w,4);g.fillStyle='#e8b23a';for(let x=0;x<w;x+=128)g.fillRect(x,h/2-3,72,6);},rep);}
+function puffTex(){if(MC.puff)return MC.puff;const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');const gr=g.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,255,255,.9)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,64,64);return MC.puff=new THREE.CanvasTexture(c);}
+
+function init3D(){
+  stageEl=$('#stage3d');
+  if(!HAS3D){stageEl.innerHTML='<div class="no3d">العرض ثلاثي الأبعاد مش متاح على هالجهاز أو المتصفح.</div>';return;}
+  R3=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});R3.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  R3.shadowMap.enabled=true;R3.shadowMap.type=THREE.PCFSoftShadowMap;R3.outputEncoding=THREE.sRGBEncoding;R3.toneMapping=THREE.ACESFilmicToneMapping;R3.toneMappingExposure=1.05;
+  stageEl.appendChild(R3.domElement);cam=new THREE.PerspectiveCamera(38,1,0.5,2000);
+  const el=R3.domElement;
+  el.addEventListener('pointerdown',e=>{orb.drag={x:e.clientX,y:e.clientY,az:orb.az,el:orb.el};el.setPointerCapture(e.pointerId);orb.idleAt=performance.now();});
+  el.addEventListener('pointermove',e=>{if(!orb.drag)return;orb.az=orb.drag.az-(e.clientX-orb.drag.x)*0.006;orb.el=clamp(orb.drag.el+(e.clientY-orb.drag.y)*0.004,0.04,1.2);orb.idleAt=performance.now();});
+  el.addEventListener('pointerup',()=>{orb.drag=null;});el.addEventListener('pointercancel',()=>{orb.drag=null;});
+  el.addEventListener('wheel',e=>{e.preventDefault();orb.tdist=clamp(orb.tdist*(1+e.deltaY*0.0012),W.minD||8,W.maxD||200);orb.idleAt=performance.now();},{passive:false});
+  new ResizeObserver(resize3D).observe(stageEl);resize3D();
+}
+function resize3D(){if(!R3)return;const r=stageEl.getBoundingClientRect();R3.setSize(Math.max(1,r.width),Math.max(1,r.height),false);cam.aspect=r.width/Math.max(1,r.height);cam.updateProjectionMatrix();}
+function disposeScene(){if(!scene)return;scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&o.material.map&&o.material.userData.own)o.material.map.dispose();});scene=null;}
+function skyTex(top,hor){const c=document.createElement('canvas');c.width=2;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,top);gr.addColorStop(.62,hor);gr.addColorStop(1,hor);g.fillStyle=gr;g.fillRect(0,0,2,256);const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
+function baseScene(){
+  scene=new THREE.Scene();scene.fog=new THREE.Fog('#cfe0e6',120,700);
+  W.hemi=new THREE.HemisphereLight('#cfe6ff','#9b7b55',.6);scene.add(W.hemi);
+  W.sun=new THREE.DirectionalLight('#fff1dc',2.2);W.sun.castShadow=true;W.sun.shadow.mapSize.set(2048,2048);const sc=W.sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=1;sc.far=500;W.sun.shadow.bias=-0.0004;W.sun.shadow.normalBias=0.02;scene.add(W.sun);scene.add(W.sun.target);
+  W.lamps=[];W.heads=[];W.anim=[];W.skyKey='';
+}
+function addDunes(rad){const m=mat('#c9a874',.95);for(let i=0;i<22;i++){const a=i/22*Math.PI*2+Math.random()*.2,r=rad+Math.random()*rad*.8;const d=new THREE.Mesh(new THREE.SphereGeometry(1,24,12),m);d.scale.set(30+Math.random()*60,5+Math.random()*14,20+Math.random()*40);d.position.set(Math.cos(a)*r,-2,Math.sin(a)*r);d.rotation.y=Math.random()*3;d.receiveShadow=true;scene.add(d);}}
+function addGround(size,tex){const t=tex||sandTex([size/14,size/14]);const m=new THREE.MeshStandardMaterial({map:t,roughness:1,metalness:0});m.userData.own=1;const g=new THREE.Mesh(new THREE.PlaneGeometry(size,size),m);g.rotation.x=-Math.PI/2;g.receiveShadow=true;scene.add(g);return g;}
+function lampTower(x,z,ry,p){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry||0;box(1.6,.8,2.4,mat('#e3ac34',.6),0,.45,0,g);cyl(.1,.14,8,mat('#9aa3a8',.4,.7),8,g).position.y=4.6;const head=box(1.8,.9,.4,mat('#f5f2e8',.4,.2),0,8.6,.2,g);const L=new THREE.PointLight('#ffe7b8',0,55,1.6);L.position.set(0,8.4,1.2);g.add(L);W.lamps.push(L);W.heads.push(head);(p||scene).add(g);return g;}
+
+/* ---------- vehicles & rigs ---------- */
+function wheel(x,z,r,p){const g=new THREE.Group();g.position.set(x,r,z);const t=cyl(r,r,.5,mat('#151515',.95),22,g);t.rotation.x=Math.PI/2;const h=cyl(r*.55,r*.55,.52,mat('#b9bfc3',.35,.8),12,g);h.rotation.x=Math.PI/2;p.add(g);W.wheels=W.wheels||[];W.wheels.push({g,r});return g;}
+function cab(p,x,color){const white=mat(color||'#eeeae0',.42,.15),dark=mat('#2b3034',.75,.35),glass=mat('#16242c',.08,.85),stripe=mat('#ff7a1a',.5,.2);
+  box(2.4,2.6,2.5,white,x,2.55,0,p);box(.06,1.0,2.2,glass,x+1.21,3.15,0,p);box(1.2,.8,.05,glass,x+.4,3.15,1.26,p);box(1.2,.8,.05,glass,x+.4,3.15,-1.26,p);box(2.42,.22,2.52,stripe,x,1.95,0,p);
+  box(.06,.7,1.7,dark,x+1.22,1.85,0,p);box(.35,.35,2.5,dark,x+1.3,1.12,0,p);box(.5,.12,2.2,dark,x+.1,3.92,0,p);
+  [1,-1].forEach(s=>{const hl=box(.06,.22,.45,mat('#fff3c4',.3,0,'#000000').clone(),x+1.24,1.55,s*.85,p);W.heads.push(hl);box(.08,.5,.3,dark,x+1.0,3.1,s*1.45,p);});
+  cyl(.12,.12,.25,mat('#ffb000',.4,0,'#ff8800'),10,p).position.set(x+.2,4.0,0);
+  cyl(.11,.11,2.2,mat('#d7dcdf',.2,.95),10,p).position.set(x-1.4,3.6,1.0);}
+function makeRigTruck(){
+  const g=new THREE.Group(),dark=mat('#2b3034',.75,.35),orange=mat('#ff7a1a',.5,.25),yellow=mat('#e3ac34',.55,.15),steel=mat('#8d979c',.4,.75);
+  box(12.4,.45,1.3,dark,0,1.05,0,g);cab(g,5.2);
+  [5.0,-2.6,-4.1].forEach(x=>{wheel(x,1.15,.62,g);wheel(x,-1.15,.62,g);});
+  box(8.6,.3,2.5,dark,-1.6,1.42,0,g);box(2.4,1.7,2.3,yellow,2.6,2.45,0,g);for(let i=0;i<5;i++)box(.04,1.1,.12,dark,3.82,2.45,-.8+i*.4,g);
+  box(1.6,1.1,1.8,steel,.6,2.15,0,g);cyl(.35,.35,1.4,mat('#c8372d',.5,.2),14,g).position.set(-.9,2.2,.6);
+  for(let i=0;i<8;i++){const rd=cyl(.08,.08,5.4,steel,8,g);rd.rotation.z=Math.PI/2;rd.position.set(-2.6,1.7+Math.floor(i/4)*.18,(i%4<2?1:-1)*(.85+(i%2)*.18));}
+  box(.2,2.3,2.6,dark,4.0,2.85,0,g);
+  const jacks=new THREE.Group();g.add(jacks);[[-5.4,1.4],[-5.4,-1.4],[3.6,1.4],[3.6,-1.4]].forEach(([x,z])=>{cyl(.14,.14,1.2,steel,8,jacks).position.set(x,.6,z);box(.5,.08,.5,dark,x,.04,z,jacks);});
+  const piv=new THREE.Group();piv.position.set(-5.9,2.3,0);g.add(piv);const Lm=13;
+  [[.25,.42],[.25,-.42],[1.05,.42],[1.05,-.42]].forEach(([y,z])=>box(Lm,.16,.16,orange,Lm/2,y,z,piv));
+  for(let x=.6;x<Lm;x+=1.3){[.42,-.42].forEach(z=>{beam(V(x,.25,z),V(x,1.05,z),.08,orange,piv);beam(V(x,.25,z),V(Math.min(Lm,x+1.3),1.05,z),.07,orange,piv);});beam(V(x,1.05,.42),V(x,1.05,-.42),.07,orange,piv);beam(V(x,.25,.42),V(x,.25,-.42),.07,orange,piv);}
+  box(.9,1.1,1.2,orange,Lm+.2,.65,0,piv);cyl(.35,.35,.3,steel,14,piv).position.set(Lm+.2,1.4,0);
+  const td=new THREE.Group();piv.add(td);box(.8,.9,.9,dark,0,1.45,0,td);box(.55,.55,.55,orange,.0,1.45,.65,td);
+  const pipe=cyl(.1,.1,1,steel,10,g);pipe.position.set(-7.35,.5,0);pipe.visible=false;
+  cyl(.38,.38,.6,steel,14,g).position.set(-7.35,.3,0);
+  return{g,piv,td,pipe,jacks,hole:-7.35,Lm};
+}
+function makeSupplyTruck(cargo,service){
+  const g=new THREE.Group(),dark=mat('#2b3034',.75,.35);box(11.6,.45,1.3,dark,0,1.05,0,g);cab(g,4.8,'#2f5d8a');[4.6,-2.4,-3.9].forEach(x=>{wheel(x,1.15,.6,g);wheel(x,-1.15,.6,g);});
+  box(8.2,.28,2.5,mat('#55606a',.6,.4),-1.4,1.42,0,g);for(let x=-5.3;x<=2.6;x+=1.3){box(.08,.7,.08,dark,x,1.9,1.22,g);box(.08,.7,.08,dark,x,1.9,-1.22,g);}
+  if(service){box(3,1.8,2.2,mat('#eeeae0',.5),-3.6,2.5,0,g);const arm=box(5,.3,.3,mat('#e3ac34',.5),0,3.0,0,g);arm.rotation.z=.25;return g;}
+  let x=-5.2;const c=cargo||{};
+  const nCas=Math.min(18,Math.round((c.casingW||0)+(c.casingO||0)));if(nCas>0){const big=(c.casingO||0)>0;const r=big?.24:.17;let i=0;for(let row=0;row<3&&i<nCas;row++)for(let k=0;k<6&&i<nCas;k++,i++){const p=cyl(r,r,big?7.5:6,mat('#7b8a91',.35,.8),12,g);p.rotation.z=Math.PI/2;p.position.set(-2.2,1.56+r+row*r*1.8,-0.95+k*r*2.05+(row%2)*r);}x=1.6;}
+  const nIbc=Math.min(4,Math.ceil((c.diesel||0)/1000));for(let i=0;i<nIbc&&x<2.6;i++){box(1.1,1.1,1.1,mat('#f1efe8',.35,.1),x,2.12,-.6,g);box(1.14,.08,1.14,mat('#8d979c',.4,.7),x,2.7,-.6,g);if(i%2===1)x+=1.2;else{box(1.1,1.1,1.1,mat('#f1efe8',.35,.1),x,2.12,.6,g);x+=1.2;}}
+  const nPal=Math.min(6,Math.ceil((c.mud||0)/40));for(let i=0;i<nPal&&x<2.8;i++){box(1.1,.15,1.1,mat('#9b7b55',.9),x,1.65,(i%2?.6:-.6),g);box(1.0,.8,1.0,mat('#b48c58',.95),x,2.1,(i%2?.6:-.6),g);if(i%2)x+=1.2;}
+  return g;
+}
+function makeHeavyHaul(){
+  const g=new THREE.Group(),dark=mat('#2b3034',.75,.35),red=mat('#c8372d',.5,.3);
+  box(6,.5,1.4,dark,4.5,1.1,0,g);cab(g,6.3,'#c8372d');[6.4,3.6,2.4].forEach(x=>{wheel(x,1.2,.65,g);wheel(x,-1.2,.65,g);});
+  box(16,.4,3,mat('#55606a',.6,.4),-6.5,.95,0,g);[-11,-12.3,-13.6].forEach(x=>{wheel(x,1.3,.5,g);wheel(x,-1.3,.5,g);});box(1.2,.7,2.6,dark,1.6,1.4,0,g);
+  const sec=new THREE.Group();sec.position.set(-6.5,1.3,0);g.add(sec);const L=13,hw=1.2,hh=2.4;
+  [[0,hw],[0,-hw],[hh,hw],[hh,-hw]].forEach(([y,z])=>box(L,.2,.2,red,0,y,z,sec));
+  for(let x=-L/2;x<L/2;x+=1.6){[hw,-hw].forEach(z=>{beam(V(x,0,z),V(x,hh,z),.1,red,sec);beam(V(x,0,z),V(x+1.6,hh,z),.09,red,sec);});beam(V(x,hh,hw),V(x,hh,-hw),.09,red,sec);}
+  return g;
+}
+function makePilotCar(){const g=new THREE.Group();box(4.6,1.0,1.9,mat('#eeeae0',.4,.2),0,1.0,0,g);box(2.4,.8,1.8,mat('#16242c',.1,.8),-.2,1.85,0,g);box(1.6,.12,.3,mat('#ffb000',.4,0,'#ff8800'),-.2,2.35,0,g);[1.5,-1.5].forEach(x=>{wheel(x,.85,.42,g);wheel(x,-.85,.42,g);});return g;}
+function makeDerrick(){
+  const g=new THREE.Group(),red=mat('#c8372d',.55,.3),dark=mat('#2b3034',.75,.35),steel=mat('#8d979c',.4,.75),yellow=mat('#e3ac34',.55,.15),blue=mat('#2f5d8a',.55,.3),white=mat('#eeeae0',.5,.1);
+  const fh=7;box(1.6,fh,13,steel,4.6,fh/2,0,g);box(1.6,fh,13,steel,-4.6,fh/2,0,g);for(let z=-6;z<=6;z+=3)beam(V(-4.6,.5,z),V(4.6,fh-.5,z+1.5),.18,steel,g);
+  box(13,.6,13,dark,0,fh+.3,0,g);
+  const y0=fh+.6,H=38,b0=4.2,b1=1.1,P=(t,sx,sz)=>{const h=b0+(b1-b0)*t;return V(sx*h,y0+H*t,sz*h);},n=9;
+  [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(([sx,sz])=>beam(P(0,sx,sz),P(1,sx,sz),.36,red,g));
+  for(let i=0;i<=n;i++){const t=i/n;const C=[P(t,1,1),P(t,1,-1),P(t,-1,-1),P(t,-1,1)];for(let k=0;k<4;k++)beam(C[k],C[(k+1)%4],.16,red,g);
+    if(i<n){const t2=(i+1)/n;const D=[P(t2,1,1),P(t2,1,-1),P(t2,-1,-1),P(t2,-1,1)];for(let k=0;k<4;k++){if(k===2&&i<2)continue;beam(C[k],D[(k+1)%4],.11,red,g);beam(C[(k+1)%4],D[k],.11,red,g);}}}
+  box(3.2,.5,3.2,dark,0,y0+H+.2,0,g);box(1.6,1.2,1.6,yellow,0,y0+H+1,0,g);
+  const block=new THREE.Group();g.add(block);box(1.2,2.2,1.2,yellow,0,0,0,block);box(1,1.4,1,dark,0,-1.9,0,block);
+  const line=cyl(.05,.05,1,steel,6,g);const pipe=cyl(.13,.13,1,steel,10,g);
+  box(4,2.4,2.6,blue,3.2,fh+1.8,-3.6,g);box(5,3,3,white,0,fh+2.1,7.6,g);box(5,.3,3,dark,0,fh+.3,7.6,g);
+  beam(V(-6.5,fh+.5,0),V(-17,1.2,0),1.6,steel,g);box(14,1,2.2,steel,-24,.5,0,g);
+  [[1,1.2,'#c8372d'],[2.5,1.0,'#e3ac34'],[3.8,.8,'#c8372d']].forEach(([y,r,c])=>cyl(r,r,1.3,mat(c,.5,.3),18,g).position.set(0,y,0));
+  for(let i=0;i<3;i++){box(12,2.6,3.4,steel,14,1.3,-6+i*4,g);for(let k=0;k<3;k++)box(.7,.6,.7,yellow,10+k*4,2.9,-6+i*4,g);}
+  for(let i=0;i<2;i++)box(5,2.4,2.4,blue,14,1.2,8+i*3.4,g);
+  for(let i=0;i<3;i++){box(6,2.6,2.5,yellow,-12,1.3,-12+i*3.2,g);cyl(.18,.18,1.6,mat('#d7dcdf',.2,.95),8,g).position.set(-10,3.3,-12+i*3.2);}
+  const ft=cyl(1.6,1.6,8,white,20,g);ft.rotation.z=Math.PI/2;ft.position.set(-14,1.8,10);
+  return{g,block,line,pipe,y0,H,fh};
+}
+function pipeRack(p,x,z,n,len,r,color){const g=new THREE.Group();g.position.set(x,0,z);[-len*.35,len*.35].forEach(dx=>{box(.3,.9,3.6,mat('#55606a',.7,.4),dx,.45,0,g);});
+  let i=0;for(let row=0;i<n&&row<6;row++)for(let k=0;k<8&&i<n;k++,i++){const c=cyl(r,r,len,mat(color||'#7b8a91',.35,.8),12,g);c.rotation.z=Math.PI/2;c.position.set(0,.9+r+row*r*1.75,-1.6+k*r*2.05+(row%2)*r);}p.add(g);return g;}
+function pallets(p,x,z,n,cols){const g=new THREE.Group();g.position.set(x,0,z);for(let i=0;i<n;i++){const cx=(i%cols)*1.5,cz=Math.floor(i/cols)*1.5;box(1.2,.15,1.2,mat('#9b7b55',.9),cx,.08,cz,g);box(1.1,.9,1.1,mat('#b48c58',.95),cx,.6,cz,g);}p.add(g);return g;}
+function cabin(p,x,z,ry,color){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry||0;box(7,2.7,2.5,mat(color||'#eeeae0',.5,.1),0,1.55,0,g);box(7.1,.2,2.6,mat('#55606a',.6,.4),0,2.95,0,g);for(let i=0;i<3;i++)box(.9,.7,.05,mat('#16242c',.1,.8),-2.2+i*2.2,1.8,1.26,g);box(.8,1.9,.05,mat('#55606a',.6,.3),2.9,1.2,1.26,g);for(let i=0;i<4;i++)box(.3,.25,.3,mat('#55606a'),-3+i*2,.12,0,g);p.add(g);return g;}
+function puffs(n,size,color,op){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3));const m=new THREE.PointsMaterial({size,map:puffTex(),transparent:true,depthWrite:false,opacity:op||.45,color});const p=new THREE.Points(geo,m);p.frustumCulled=false;p.userData={n,age:new Float32Array(n).map(()=>Math.random()),vel:new Float32Array(n*3)};scene.add(p);return p;}
+function stepPuffs(p,dt,emit,vfn,life){const pos=p.geometry.attributes.position.array,a=p.userData.age,v=p.userData.vel;for(let i=0;i<p.userData.n;i++){a[i]+=dt/life;if(a[i]>=1){a[i]=a[i]%1;const e=emit();pos[i*3]=e.x;pos[i*3+1]=e.y;pos[i*3+2]=e.z;const vv=vfn();v[i*3]=vv.x;v[i*3+1]=vv.y;v[i*3+2]=vv.z;}pos[i*3]+=v[i*3]*dt;pos[i*3+1]+=v[i*3+1]*dt;pos[i*3+2]+=v[i*3+2]*dt;}p.geometry.attributes.position.needsUpdate=true;}
+
+/* ---------- scenes ---------- */
+function buildSite(ctx){
+  const job=ctx.job,oil=job.kind==='oil';baseScene();addGround(1400);addDunes(oil?260:180);
+  const pad=new THREE.Mesh(new THREE.PlaneGeometry(oil?110:52,oil?90:46),new THREE.MeshStandardMaterial({map:gravelTex([10,9]),roughness:1}));pad.material.userData.own=1;pad.rotation.x=-Math.PI/2;pad.position.y=.03;pad.receiveShadow=true;scene.add(pad);
+  W.mode='site';W.oil=oil;W.minD=oil?30:10;W.maxD=oil?220:120;W.dyn=new THREE.Group();scene.add(W.dyn);W.dynKey='';
+  const rig=ctx.rig;
+  if(oil){
+    if(rig){W.der=makeDerrick();scene.add(W.der.g);}
+    else{for(let i=0;i<4;i++){const s=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,1.4,6),mat('#eeeae0',.6));s.position.set(i<2?-8:8,.7,i%2?-8:8);scene.add(s);}}
+    cabin(scene,34,-20,Math.PI/2);cabin(scene,34,-10,Math.PI/2);cabin(scene,34,0,Math.PI/2,'#e3ac34');lampTower(-30,-30,.7);lampTower(30,30,-2.4);lampTower(-30,30,2.4);
+    const pit=new THREE.Mesh(new THREE.PlaneGeometry(14,8),mat('#4d3a28',.25,.1));pit.rotation.x=-Math.PI/2;pit.position.set(22,.06,22);scene.add(pit);
+    orb.tgt=V(0,rig?14:2,0);
+  }else{
+    if(rig){W.rt=makeRigTruck();W.rt.g.position.set(5,0,0);scene.add(W.rt.g);}
+    else{for(let i=0;i<4;i++){const s=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1.2,6),mat('#eeeae0',.6));s.position.set(i<2?-4:4,.6,i%2?-4:4);scene.add(s);const f=box(.4,.25,.02,mat('#ff7a1a',.6),s.position.x+.2,1.1,s.position.z,scene);f.castShadow=false;}
+      const sign=new THREE.Group();sign.position.set(-8,0,8);cyl(.06,.06,2,mat('#8d979c'),6,sign).position.y=1;box(2,1,.08,mat('#eeeae0',.5),0,2.1,0,sign);scene.add(sign);}
+    const pit=new THREE.Mesh(new THREE.PlaneGeometry(6,4),mat('#5b4029',.22,.1));pit.rotation.x=-Math.PI/2;pit.position.set(-2.3,.06,6.5);scene.add(pit);
+    [[-2.3,8.6,6.4,.4],[-2.3,4.4,6.4,.4],[-5.4,6.5,.4,4.6],[0.8,6.5,.4,4.6]].forEach(([x,z,w,d])=>box(w,.5,d,mat('#a58b66',1),x,.25,z,scene));
+    box(5,2.2,2.2,mat('#8d979c',.4,.7),-11,1.1,6,scene);const wt=cyl(1.2,1.2,6,mat('#2f5d8a',.5,.3),18,scene);wt.rotation.z=Math.PI/2;wt.position.set(-11,1.4,-5);
+    const dt=cyl(.9,.9,4,mat('#e3ac34',.5,.2),16,scene);dt.rotation.z=Math.PI/2;dt.position.set(12,1.1,-9);
+    cabin(scene,15,7,-.2);box(3,1.8,1.6,mat('#e3ac34',.6),9,.9,12,scene);lampTower(-14,-13,.8);lampTower(16,12,-2.3);
+    orb.tgt=V(0,rig?4:1,0);
+  }
+  if(ctx.unloading)W.supply=(()=>{const s=makeSupplyTruck(ctx.unloading.cargo,ctx.unloading.mission==='service');s.position.set(oil?-30:18,0,oil?18:-4);s.rotation.y=oil?.5:-.3;scene.add(s);return s;})();
+  W.exh=puffs(40,1.6,'#5a5550',.35);W.dust=puffs(30,2.2,'#c9a874',.25);
+}
+function buildRoad(ctx){
+  baseScene();W.mode='road';W.minD=8;W.maxD=90;
+  const gt=sandTex([60,60]);W.gtex=gt;addGround(900,gt);addDunes(220);
+  const rt=roadTex([40,1]);W.rtex=rt;const rm=new THREE.MeshStandardMaterial({map:rt,roughness:.85});rm.userData.own=1;const road=new THREE.Mesh(new THREE.PlaneGeometry(960,9),rm);road.rotation.x=-Math.PI/2;road.position.y=.04;road.receiveShadow=true;scene.add(road);
+  const sh=new THREE.MeshStandardMaterial({map:gravelTex([120,1]),roughness:1});sh.userData.own=1;W.stex=sh.map;[-6,6].forEach(z=>{const s=new THREE.Mesh(new THREE.PlaneGeometry(960,3),sh);s.rotation.x=-Math.PI/2;s.position.set(0,.035,z);s.receiveShadow=true;scene.add(s);});
+  W.props=[];const pm=mat('#6d6152',.85),poleM=mat('#8a7a64',.8);
+  for(let i=0;i<14;i++){const g=new THREE.Group();const x=-280+i*40;cyl(.15,.2,9,poleM,8,g).position.y=4.5;box(2.6,.15,.15,poleM,0,8.6,0,g);g.position.set(x,0,-12);scene.add(g);W.props.push(g);}
+  for(let i=0;i<60;i++){const s=.4+Math.random()*1.6;const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),pm);r.position.set(-300+Math.random()*600,s*.4,(Math.random()<.5?-1:1)*(9+Math.random()*60));r.rotation.set(Math.random()*3,Math.random()*3,0);r.castShadow=true;scene.add(r);W.props.push(r);}
+  for(let i=0;i<30;i++){const s=.5+Math.random()*.8;const b=new THREE.Mesh(new THREE.IcosahedronGeometry(s,0),mat('#7d7a4a',.95));b.position.set(-300+Math.random()*600,s*.5,(Math.random()<.5?-1:1)*(8+Math.random()*40));b.scale.y=.6;scene.add(b);W.props.push(b);}
+  for(let i=0;i<4;i++){const g=new THREE.Group();cyl(.06,.06,2.2,mat('#8d979c',.4,.7),6,g).position.y=1.1;box(.1,1,1.8,mat('#2f7d4a',.5),0,2.4,0,g);g.position.set(-240+i*160,0,7.5);scene.add(g);W.props.push(g);}
+  W.wheels=[];let veh;
+  if(ctx.mode==='move'){if(ctx.rig.kind==='oil'){veh=makeHeavyHaul();W.minD=14;}else{const r=makeRigTruck();r.piv.rotation.z=0.13;veh=r.g;r.jacks.visible=false;}
+    const pc=makePilotCar();pc.position.set(26,0,-2.2);scene.add(pc);W.pilot=pc;}
+  else veh=makeSupplyTruck(ctx.truck.cargo,ctx.truck.mission==='service');
+  veh.position.set(0,0,-2.2);scene.add(veh);W.veh=veh;
+  W.dust=puffs(60,3,'#c9a874',.35);W.exh=puffs(30,1.4,'#4a4642',.35);
+  orb.tgt=V(0,2.2,-2.2);
+}
+function buildDepot(){
+  baseScene();W.mode='depot';W.minD=20;W.maxD=220;addGround(1400);addDunes(200);
+  const pad=new THREE.Mesh(new THREE.PlaneGeometry(110,80),new THREE.MeshStandardMaterial({map:gravelTex([14,10]),roughness:1}));pad.material.userData.own=1;pad.rotation.x=-Math.PI/2;pad.position.y=.03;pad.receiveShadow=true;scene.add(pad);
+  const wh=new THREE.Group();wh.position.set(-28,0,-22);box(30,9,16,mat('#9aa7ad',.5,.6),0,4.5,0,wh);const rf1=box(30.6,.4,8.8,mat('#6f7c82',.5,.6),0,9.8,-4,wh);rf1.rotation.x=.18;const rf2=box(30.6,.4,8.8,mat('#6f7c82',.5,.6),0,9.8,4,wh);rf2.rotation.x=-.18;
+  box(8,6.5,.1,mat('#3a4247',.6,.5),-6,3.25,8.02,wh);box(8,6.5,.1,mat('#3a4247',.6,.5),6,3.25,8.02,wh);box(30.2,.6,16.2,mat('#ff7a1a',.5,.2),0,7.6,0,wh);scene.add(wh);
+  cabin(scene,8,-30,0,'#eeeae0');cabin(scene,8,-26.6,0,'#eeeae0');
+  const dtk=cyl(4,4,8,mat('#eeeae0',.4,.3),24,scene);dtk.position.set(36,4,-24);box(8.6,.3,8.6,mat('#55606a'),36,.15,-24,scene);
+  [['#c8372d',0],['#2f5d8a',1],['#3a7d5a',2],['#e3ac34',3]].forEach(([c,i])=>box(12,2.6,2.45,mat(c,.6,.3),40,1.3+(i>1?2.6:0),8+(i%2)*2.6,scene));
+  for(let x=-50;x<=50;x+=5){[-40,40].forEach(z=>box(.15,2,.15,mat('#8d979c',.4,.7),x,1,z,scene));}for(let z=-40;z<=40;z+=5){[-55,55].forEach(x=>box(.15,2,.15,mat('#8d979c',.4,.7),x,1,z,scene));}
+  [[-55,0,0,110,.06],[55,0,0,110,.06]].forEach(()=>{});box(110,.08,.08,mat('#8d979c'),0,1.9,-40,scene);box(110,.08,.08,mat('#8d979c'),0,1.9,40,scene);box(.08,.08,80,mat('#8d979c'),-55,1.9,0,scene);box(.08,.08,80,mat('#8d979c'),55,1.9,0,scene);
+  lampTower(-50,30,2.3);lampTower(48,-36,-.8);lampTower(48,34,-2.3);
+  W.dyn=new THREE.Group();scene.add(W.dyn);W.dynKey='';W.exh=null;W.dust=null;orb.tgt=V(0,2,0);
+}
+function updateDepotDyn(){
+  const idle=S.trucks.filter(t=>t.state==='idle'),rigs=S.rigs.filter(r=>r.at==='depot'&&r.state==='idle');
+  const key=[idle.length,rigs.map(r=>r.kind).join(),Math.ceil(S.depot.casingW/6),Math.ceil(S.depot.casingO/4),Math.ceil(S.depot.mud/40)].join('|');if(key===W.dynKey)return;W.dynKey=key;
+  W.dyn.children.slice().forEach(c=>{W.dyn.remove(c);c.traverse(o=>{if(o.geometry)o.geometry.dispose();});});
+  idle.forEach((t,i)=>{const s=makeSupplyTruck({},false);s.position.set(-10+i*0,0,12+i*4.2);s.position.x=-14;s.rotation.y=0;W.dyn.add(s);});
+  rigs.forEach((r,i)=>{if(r.kind==='oil'){const h=makeHeavyHaul();h.position.set(10,0,26-i*7);W.dyn.add(h);}else{const t=makeRigTruck();t.piv.rotation.z=.13;t.jacks.visible=false;t.g.position.set(12,0,14+i*5);W.dyn.add(t.g);}});
+  pipeRack(W.dyn,18,-6,Math.min(40,S.depot.casingW),6,.17);if(S.depot.casingO>0)pipeRack(W.dyn,30,-6,Math.min(40,S.depot.casingO),7.5,.24);
+  pallets(W.dyn,-6,-8,Math.min(30,Math.ceil(S.depot.mud/40)),6);
+}
+function updateSiteDyn(job){
+  const R=RIG[jobRigKind(job)];const nC=Math.min(40,Math.round(job.stock[R.casing])),nP=Math.min(16,Math.ceil(job.stock.mud/40)),nI=Math.min(8,Math.ceil(job.stock.diesel/1000));
+  const key=nC+'|'+nP+'|'+nI;if(key===W.dynKey)return;W.dynKey=key;
+  W.dyn.children.slice().forEach(c=>{W.dyn.remove(c);c.traverse(o=>{if(o.geometry)o.geometry.dispose();});});
+  if(W.oil){pipeRack(W.dyn,-28,-6,nC,7.5,.24);pallets(W.dyn,-30,14,nP,4);}else{pipeRack(W.dyn,-1,-9,nC,6,.17);pallets(W.dyn,6,10,nP,4);}
+  for(let i=0;i<nI;i++){const b=box(1.1,1.1,1.1,mat('#f1efe8',.35,.1),(W.oil?-18:10)+(i%4)*1.3,.55,(W.oil?22:-14)+Math.floor(i/4)*1.3,W.dyn);b.castShadow=true;}
+}
+const tmpC1=HAS3D?new THREE.Color():null,tmpC2=HAS3D?new THREE.Color():null;
+function mixHex(a,b,t){return tmpC1.set(a).lerp(tmpC2.set(b),clamp(t,0,1)).getStyle();}
+function updateSky(date){
+  const h=date.getHours()+date.getMinutes()/60;const el=Math.sin((h-6)/12*Math.PI);const day=clamp(el*1.8,0,1),dusk=clamp(1-Math.abs(el)*3.2,0,1)*(el>-0.3?1:0);
+  const top=mixHex(mixHex('#081220','#3f7cb8',day),'#4a5a8a',dusk*.4),hor=mixHex(mixHex('#162234','#d2e2e6',day),'#f1a46b',dusk*.75);
+  const key=top+hor;if(key!==W.skyKey){W.skyKey=key;if(scene.background&&scene.background.dispose)scene.background.dispose();scene.background=skyTex(top,hor);scene.fog.color.set(hor);}
+  const az=(h/24)*Math.PI*2-Math.PI/2;const tg=orb.tgt||V(0,0,0);W.sun.position.set(tg.x+Math.cos(az)*90,tg.y+Math.max(12,el*110),tg.z+Math.sin(az)*60+30);W.sun.target.position.copy(tg);
+  W.sun.intensity=0.12+2.4*day+dusk*.5;W.sun.color.set(mixHex('#ffd2a0','#fff3e2',day));W.hemi.intensity=0.16+0.6*day;W.hemi.color.set(mixHex('#3a4f78','#d4e8ff',day));
+  const night=el<0.06;W.night=night;W.lamps.forEach(l=>l.intensity=night?2.4:0);W.heads.forEach(m=>{if(m.material&&m.material.emissive)m.material.emissive.set(night?'#ffe2a8':'#000000');});
+  R3.toneMappingExposure=night?1.25:1.05;
+  return{night,dusk:dusk>.3&&!night};
+}
+function stageCtx(){
+  const f=S.focus||{};
+  if(f.type==='depot')return{mode:'depot'};
+  if(f.type==='truck'){const t=truckById(f.id);if(t&&t.state!=='idle'){if(t.state==='unload'&&t.mission==='supply'){const j=jobById(t.dest);if(j)return siteCtx(j);}return{mode:'truck',truck:t};}}
+  if(f.type==='rig'){const r=rigById(f.id);if(r&&r.state==='moving')return{mode:'move',rig:r,job:r.jobId?jobById(r.jobId):null};}
+  if(S.page==='depot')return{mode:'depot'};
+  let job=S.sel?jobById(S.sel):null;if(!job||job.state==='done')job=S.jobs.find(j=>j.state==='active')||null;
+  if(job)return siteCtx(job);
+  const mv=S.rigs.find(r=>r.state==='moving');if(mv)return{mode:'move',rig:mv};
+  return{mode:'depot'};
+}
+function siteCtx(job){const r=job.rig?rigById(job.rig):null;if(r&&r.state==='moving')return{mode:'move',rig:r,job};const un=S.trucks.find(t=>t.state==='unload'&&t.mission==='supply'&&t.dest===job.id);return{mode:'site',job,rig:r&&r.jobId===job.id?r:null,unloading:un};}
+function ctxKey(c){return c.mode+'|'+(c.job?c.job.id:'')+'|'+(c.rig?c.rig.id+c.rig.kind:'')+'|'+(c.truck?c.truck.id+c.truck.mission:'')+'|'+(c.unloading?c.unloading.id:'');}
+let lastF=performance.now();
+function render3D(now){
+  if(!R3)return;const dt=Math.min(.1,(now-lastF)/1000);lastF=now;
+  const ctx=stageCtx(),key=ctxKey(ctx);
+  if(key!==sceneKey){sceneKey=key;disposeScene();W={};if(ctx.mode==='depot')buildDepot();else if(ctx.mode==='site')buildSite(ctx);else buildRoad(ctx);
+    const d={depot:[2.5,.42,95],site:[2.2,.3,ctx.job&&ctx.job.kind==='oil'?95:32],move:[2.55,.2,ctx.rig&&ctx.rig.kind==='oil'?40:24],truck:[2.55,.2,22]}[ctx.mode];orb.az=d[0];orb.el=d[1];orb.tdist=orb.dist=d[2];}
+  const sky=updateSky(realOf(S.t));
+  // animate
+  if(W.mode==='site'){const job=ctx.job,rig=ctx.rig;updateSiteDyn(job);
+    if(W.rt){const rt=W.rt;let up=1;if(rig.state==='rigup')up=clamp((S.t-rig.t0)/Math.max(.01,rig.t1-rig.t0),0,1);const vert=rig.state!=='moving';rt.piv.rotation.z=.13+(Math.PI/2-.13)*(vert?Math.min(1,up*1.25):0);rt.jacks.visible=vert;
+      const ready=up>=1;const dr=rig.state==='drilling'&&!job.stall;let frac=((job.depth%6)/6);if(rig.state==='tripping')frac=.5+.5*Math.sin(now/1600);const tx=rt.Lm-1.2-frac*(rt.Lm-2.6);rt.td.position.x=tx;
+      rt.pipe.visible=ready;const tdY=2.3+tx;rt.pipe.scale.y=tdY;rt.pipe.position.y=tdY/2;if(dr)rt.pipe.rotation.y+=dt*(ctlOf(rig).rpm/10);
+      stepPuffs(W.exh,dt,()=>V(5+2.6+(Math.random()-.5)*.3,4.6,1.0),()=>V((Math.random()-.5)*.6,dr?2.4:.8,(Math.random()-.5)*.6),2.6);
+      stepPuffs(W.dust,dt,()=>V(5-7.35+(Math.random()-.5),.3,(Math.random()-.5)),()=>V((Math.random()-.5)*1.4,dr?.9:.1,(Math.random()-.5)*1.4),2);W.dust.material.opacity=dr?.28:0;}
+    else if(W.der){const D=W.der,dr=rig&&rig.state==='drilling'&&!job.stall;let frac=((job.depth%27)/27);if(rig&&rig.state==='tripping')frac=.5+.5*Math.sin(now/2200);const by=D.y0+D.H-3-frac*(D.H-6);D.block.position.set(0,by,0);
+      const top=D.y0+D.H;D.line.scale.y=top-by;D.line.position.set(0,(top+by)/2,0);D.pipe.scale.y=by-2.6-D.fh;D.pipe.position.set(0,D.fh+(by-2.6-D.fh)/2,0);if(dr)D.pipe.rotation.y+=dt*3;
+      stepPuffs(W.exh,dt,()=>V(-10+(Math.random()-.5)*.3,4.2,-12+Math.floor(Math.random()*3)*3.2),()=>V((Math.random()-.5)*.8,2.2,(Math.random()-.5)*.8),3);W.dust.material.opacity=0;}
+    else{W.exh.material.opacity=0;W.dust.material.opacity=0;}
+  }else if(W.mode==='road'){
+    const moving=ctx.mode==='move'||(ctx.truck&&(ctx.truck.state==='out'||ctx.truck.state==='back'));const v=moving?(ctx.mode==='move'?14:20):0;
+    const off=v*dt;W.gtex.offset.x+=off/15;W.rtex.offset.x+=off/24;W.stex.offset.x+=off/8;
+    W.props.forEach(p=>{p.position.x-=off;if(p.position.x<-300)p.position.x+=600;});
+    (W.wheels||[]).forEach(w=>{w.g.rotation.z-=off/w.r;});
+    if(W.veh)W.veh.position.y=moving?Math.sin(now/90)*.025:0;if(W.pilot)W.pilot.position.y=moving?Math.sin(now/80+1)*.03:0;
+    stepPuffs(W.dust,dt,()=>V(-6-Math.random()*2,.3,-2.2+(Math.random()-.5)*2.8),()=>V(-v*.5-Math.random()*3,.6+Math.random()*1.4,(Math.random()-.5)*3),2.2);W.dust.material.opacity=moving?.32:0;
+    stepPuffs(W.exh,dt,()=>V(3.6,4.7,-1.2),()=>V(-v*.6-1,1.6,(Math.random()-.5)*.5),1.6);
+  }else if(W.mode==='depot'){updateDepotDyn();}
+  // camera
+  const idle=performance.now()-orb.idleAt>7000;if(idle&&!orb.drag&&W.mode!=='road')orb.az+=dt*0.04;
+  orb.dist+=(orb.tdist-orb.dist)*Math.min(1,dt*4);const tg=orb.tgt||V(0,0,0);
+  cam.position.set(tg.x+Math.cos(orb.az)*Math.cos(orb.el)*orb.dist,tg.y+Math.sin(orb.el)*orb.dist,tg.z+Math.sin(orb.az)*Math.cos(orb.el)*orb.dist);cam.lookAt(tg);
+  R3.render(scene,cam);
+  return sky;
+}
+
+/* ======================= UI ======================= */
+let lastHTML={},needsRender=true;const dirty=()=>{needsRender=true;};
+function setHTML(id,html){const el=document.getElementById(id);if(!el)return;if(lastHTML[id]===html&&el.dataset.h==='1')return;lastHTML[id]=html;el.dataset.h='1';el.innerHTML=html;}
+let frozen=false;document.addEventListener('pointerdown',e=>{if(e.target.closest('[data-live]'))frozen=true;});['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>setTimeout(()=>{frozen=false;},80)));
+const ICONS={
+  overview:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  ops:'<svg viewBox="0 0 24 24"><path d="M12 2 6 21M12 2l6 19M8.5 13h7M10 8h4M4 21h16"/></svg>',
+  contracts:'<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/></svg>',
+  fleet:'<svg viewBox="0 0 24 24"><path d="M2 6h12v10H2zM14 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+  depot:'<svg viewBox="0 0 24 24"><path d="M3 10 12 4l9 6v11H3z"/><path d="M7 21v-7h10v7M7 17h10"/></svg>',
+  wells:'<svg viewBox="0 0 24 24"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>',
+  company:'<svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+};
+const NAV=[['overview','لوحة التحكم'],['ops','العمليات'],['contracts','العقود'],['fleet','الأسطول'],['depot','المستودع'],['wells','الآبار'],['company','الشركة']];
+function buildNav(){$('#nav').innerHTML=NAV.map(([k,n])=>'<button data-act="page" data-v="'+k+'">'+ICONS[k]+'<span>'+n+'</span><span class="badge" id="nb-'+k+'" hidden></span></button>').join('')+'<div class="foot">الوقت باللعبة حقيقي. الحفر بيكمّل وإنت مسكّر الصفحة.<div id="sync" class="sync"></div></div>';}
+function renderNav(){
+  document.querySelectorAll('#nav button').forEach(b=>{if(b.dataset.v===S.page)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  const set=(k,n)=>{const e=$('#nb-'+k);if(!e)return;e.hidden=!n;e.textContent=n||'';};
+  set('ops',S.jobs.filter(j=>j.state==='active'&&(j.stall||!j.rig)).length);set('contracts',S.jobs.filter(j=>j.state==='offer'&&!canAccept(j)).length);set('wells',S.wells.filter(w=>w.cond<40&&!w.svc).length);
+}
+function go(p){S.page=p;S.focus=null;dirty();const m=$('#main');if(m)m.scrollTop=0;}
+function renderTop(){
+  const c=$('#k-cash');c.textContent=money(S.cash);c.classList.toggle('neg',S.cash<0);
+  setHTML('k-rep',[0,1,2,3,4].map(i=>'<span class="'+(i<S.rep?'on':'')+'"></span>').join(''));
+  const {inc,wg}=dailyNet();const n=$('#k-net');n.textContent=(inc-wg>=0?'+':'')+money(inc-wg);n.classList.toggle('neg',inc-wg<0);n.classList.toggle('pos',inc-wg>0);
+  const d=realOf(S.t);$('#k-day').textContent=AR_DAYS[d.getDay()]+' · يوم التشغيل '+opDay(S.t);$('#k-time').textContent=hm(d)+(DEV?' · DEV':'');
+  const un=S.log.filter(l=>l.t>S.seenLog).length;const u=$('#k-unread');u.hidden=!un;u.textContent=un>99?'99+':un;
+}
+function strata(job){const end=job.target*1.05;return '<div class="strata">'+job.layers.filter(l=>l.from<end).map(l=>'<span style="background:'+FM[l.r].c+';width:'+((Math.min(l.to,end)-l.from)/end*100).toFixed(2)+'%" title="'+esc(FM[l.r].n)+'"></span>').join('')+'</div>';}
+function statusChip(job){
+  if(job.state==='offer')return '<span class="chip '+(job.kind==='oil'?'oil':'water')+'">'+(job.kind==='oil'?'نفط':'مياه')+'</span>';
+  if(job.state==='done')return '<span class="chip good">مكتمل</span>';
+  const r=job.rig?rigById(job.rig):null;
+  if(!r)return '<span class="chip warn">بانتظار حفارة</span>';if(r.state==='moving')return '<span class="chip mut">الحفارة بالطريق</span>';if(r.state==='rigup')return '<span class="chip mut">تركيب الحفارة</span>';
+  if(r.state==='inc')return '<span class="chip bad">طارئ</span>';if(job.stall)return '<span class="chip bad">متوقف</span>';if(r.state==='wait')return '<span class="chip warn">'+esc(r.waitTxt||'معالجة')+'</span>';
+  if(r.state==='tripping')return '<span class="chip warn">تبديل رأس</span>';if(r.state==='casing')return '<span class="chip mut">تغليف</span>';return '<span class="chip hv">يحفر</span>';
+}
+function deadlineTxt(job){const left=job.deadline-S.t;return left<0?'<span style="color:var(--bad)">متأخر '+dur(-left)+'</span>':dur(left);}
+function fmList(job,kind){return '<div class="fmlist">'+layerPlan(job,kind).map(p=>{const fm=p.fm,risks=[];if(fm.aq)risks.push('خزان مياه');if(fm.frac)risks.push('فقدان طين');if(fm.swell)risks.push('علق مواسير');if(fm.kick)risks.push('اندفاع ضغط');if(fm.cave)risks.push('انهيار');if(fm.abr>.7)risks.push('بيآكل الرؤوس');if(fm.oil)risks.push('نفط');
+  return '<div class="fm"><i style="background:'+fm.c+'"></i><div><b>'+fm.n+'</b> <span class="muted num" style="font-size:12px">'+fm.code+'</span><small>'+fm.lith+' · مقاومة '+fm.ucs+' MPa</small>'+(risks.length?'<span class="rk">'+risks.join(' · ')+'</span>':'')+'</div><div style="text-align:left"><b class="num">'+p.a+'–'+p.b+' m</b><small class="num">~'+p.rop.toFixed(1)+' m/h · '+dur(p.h)+'</small></div></div>';}).join('')+'</div>';}
+function hint(){
+  const act=S.jobs.filter(j=>j.state==='active');
+  if(!act.length){const o=S.jobs.filter(j=>j.state==='offer'&&!canAccept(j)).sort((a,b)=>kmBetween(DEPOT,siteById(a.site))-kmBetween(DEPOT,siteById(b.site)))[0];
+    if(o)return['اقبل عقداً من «العقود». الأقرب: «'+siteById(o.site).name+'» ('+o.target+' م).','<button class="btn pri sm" data-act="page" data-v="contracts">افتح العقود</button>'];return['ما في عروض هلأ. العروض الجديدة بتوصل كل يوم تقريباً.',''];}
+  for(const j of act)if(!j.rig){const r=S.rigs.find(r=>r.kind===jobRigKind(j)&&!r.jobId&&r.state==='idle');if(r)return['ابعت الحفارة «'+r.name+'» إلى «'+siteById(j.site).name+'».','<button class="btn pri sm" data-act="sendrig" data-v="'+j.id+'" data-rig="'+r.id+'">ابعت الحفارة</button>'];}
+  const idle=S.trucks.some(t=>t.state==='idle');
+  for(const j of act)if(j.stall)return['«'+siteById(j.site).name+'» متوقف: '+STALL[j.stall]+'.',idle?'<button class="btn pri sm" data-act="dispatch" data-job="'+j.id+'">ابعت شحنة</button>':''];
+  for(const j of act){const rc=reach(j),tr=inTransit(j.id),rem=j.target-j.depth;const short=Math.min(rc.diesel,rc.mud,rc.casing,rc.bits)<rem-0.5;if(short&&!ITEM_KEYS.some(k=>tr[k]>0))return['مخزون «'+siteById(j.site).name+'» ما بيكفي لآخر البير. ابعت شحنة قبل ما يوقف الحفر.',idle?'<button class="btn pri sm" data-act="dispatch" data-job="'+j.id+'">ابعت شحنة</button>':''];}
+  for(const j of act){const r=j.rig&&rigById(j.rig);if(r&&r.state==='drilling'&&!j.stall&&effAt(ctlOf(r),FM[layerAt(j,j.depth).r])<.6&&!(S.autoDrill&&r.auto!==false))return['الحفر بـ«'+siteById(j.site).name+'» بطيء. اضبط الثقل والدوران من «العمليات».','<button class="btn sm" data-act="sel" data-v="'+j.id+'">افتح المنصة</button>'];}
+  return['كل شي ماشي. الحفر بيكمّل لحاله حتى لو سكّرت الصفحة.',''];
+}
+/* ---------- pages ---------- */
+let builtKey='';
+const PAGES={
+  overview:{build:()=>'<div class="pg-h"><div><h1>لوحة التحكم</h1><p>نظرة سريعة على الشركة والعمليات الجارية.</p></div></div>'+
+    '<div class="hint"><span class="tag">الخطوة التالية</span><p id="hint-t"></p><span id="hint-b"></span></div>'+
+    '<div class="g2"><div class="card"><div class="card-h"><h2>خريطة الامتياز</h2><span class="muted" style="font-size:13px">اضغط على موقع</span></div><div class="mapbox" id="slot-map"><div class="tip" id="tip" hidden></div></div></div>'+
+    '<div class="col"><div class="card"><div class="card-h"><h2>العمليات الجارية</h2></div><div id="ov-ops" class="col" style="gap:8px"></div></div>'+
+    '<div class="card"><div class="card-h"><h2>آخر الأحداث</h2><button class="lnk" data-act="drawer">السجل الكامل</button></div><div id="ov-log" class="loglist"></div></div></div></div>',
+    update(){const [t,b]=hint();setHTML('hint-t',esc(t));setHTML('hint-b',b);
+      const act=S.jobs.filter(j=>j.state==='active');let h=act.map(j=>{const est=estFinish(j);return '<button class="opsrow'+(S.sel===j.id?' sel':'')+'" data-act="sel" data-v="'+j.id+'"><div class="row"><h3>'+esc(siteById(j.site).name)+'</h3>'+statusChip(j)+'</div><div class="bar"><i style="width:'+(j.depth/j.target*100).toFixed(1)+'%"></i></div><div class="row muted" style="font-size:13px"><span class="num">'+Math.round(j.depth)+' / '+j.target+' m</span><span>'+(est!=null?'الانتهاء '+when(S.t+est):'المهلة '+deadlineTxt(j))+'</span></div></button>';}).join('');
+      const tr=S.trucks.filter(t=>t.state!=='idle');h+=tr.map(t=>'<button class="opsrow" data-act="focus" data-type="truck" data-v="'+t.id+'"><div class="row"><h3>'+esc(t.name)+'</h3><span class="chip mut">'+truckStatus(t)+'</span></div></button>').join('');
+      setHTML('ov-ops',h||'<div class="empty">ما في عمليات. اقبل عقد من «العقود».</div>');setHTML('ov-log',logHTML(8));}},
+  ops:{key:()=>{const j=opsJob();return j?j.id+j.state:'none';},build:()=>{const j=opsJob();
+    if(!j)return '<div class="pg-h"><div><h1>العمليات</h1><p>ما في عقود قيد التنفيذ.</p></div></div><div class="card"><div class="empty">اقبل عقد من صفحة العقود، وبعدها ابعت الحفارة والإمدادات.</div><div class="btns"><button class="btn pri" data-act="page" data-v="contracts">افتح العقود</button></div></div>';
+    return '<div class="pg-h"><div><h1>العمليات</h1><p>إدارة الحفر والإمداد لكل موقع.</p></div><div class="jobtabs" id="ops-tabs"></div></div><div class="card" id="ops-head"></div>'+
+      '<div class="g3"><div class="card"><div class="card-h"><h2>مقطع البئر</h2><span class="muted" style="font-size:13px" id="ops-layer"></span></div><div class="xbox" id="slot-xsec"></div><div id="ops-fm"></div></div>'+
+      '<div class="card"><div class="card-h"><h2>منصة الحفّار</h2><span id="con-chip"></span></div><div id="con"></div></div>'+
+      '<div class="card"><div class="card-h"><h2>مخزون الموقع</h2><span class="muted" style="font-size:13px">يكفي لـ</span></div><div id="ops-stock"></div></div></div>';},
+    update(){const j=opsJob();if(!j)return;renderOpsHead(j);renderStock(j);renderConsole(j);
+      setHTML('ops-tabs',S.jobs.filter(x=>x.state==='active').map(x=>'<button aria-pressed="'+(x.id===j.id)+'" data-act="sel" data-v="'+x.id+'">'+esc(siteById(x.site).name)+'</button>').join(''));
+      const fm=FM[layerAt(j,j.depth).r];setHTML('ops-layer',fm.n);
+      if(!lastHTML['ops-fm'])setHTML('ops-fm','<details><summary class="sec-t" style="cursor:pointer">ملف الطبقات والتوقعات</summary>'+fmList(j)+'</details>');}},
+  contracts:{build:()=>'<div class="pg-h"><div><h1>العقود</h1><p>كل عقد إله طبقات أرض معروفة من المسح. الطبقات الصلبة بتاخد وقت، والطرية بتمشي بسرعة.</p></div></div>'+
+    '<div class="sec-t">عروض متاحة</div><div class="gcards" id="ct-offers"></div><div class="sec-t">قيد التنفيذ</div><div class="card"><div class="tbl-wrap" id="ct-active"></div></div><div class="sec-t">منجزة</div><div class="card"><div class="tbl-wrap" id="ct-done"></div></div>',
+    update(){const off=S.jobs.filter(j=>j.state==='offer');
+      setHTML('ct-offers',off.length?off.map(j=>{const s=siteById(j.site),why=canAccept(j),km=kmBetween(DEPOT,s),hrs=layerPlan(j).reduce((a,p)=>a+p.h,0);
+        return '<div class="card offer'+(S.sel===j.id?'" style="border-color:var(--hivis)':'')+'"><div class="row"><h3>'+esc(j.title)+'</h3>'+statusChip(j)+'</div><div class="sub">'+esc(j.client)+' · '+esc(s.name)+' · '+Math.round(km)+' كم</div>'+
+        '<div class="facts"><div class="fact"><label>العمق</label><b class="num">'+num(j.target)+' m</b></div><div class="fact"><label>حفر متوقع</label><b>'+dur(hrs)+'</b></div><div class="fact"><label>المهلة</label><b>'+j.days+' أيام</b></div></div>'+strata(j)+
+        '<details><summary class="sec-t" style="cursor:pointer">الطبقات المتوقعة ('+j.layers.filter(l=>l.from<j.target).length+')</summary>'+fmList(j)+'</details>'+
+        '<div class="row"><b class="num" style="font-size:19px;color:var(--brass)">'+money(j.reward)+'</b>'+(why?'<span style="color:var(--warn);font-size:13px">🔒 '+why+'</span>':'<div class="btns"><button class="btn sm" data-act="viewsite" data-v="'+j.id+'">شوف الموقع</button><button class="btn pri sm" data-act="accept" data-v="'+j.id+'">قبول العقد</button></div>')+'</div>'+
+        (j.expires?'<div class="muted" style="font-size:12.5px">ينتهي العرض '+when(j.expires)+'</div>':'')+'</div>';}).join(''):'<div class="card"><div class="empty">ما في عروض هلأ. العروض بتوصل كل يوم تقريباً.</div></div>');
+      const act=S.jobs.filter(j=>j.state==='active');setHTML('ct-active',act.length?'<table class="tbl"><thead><tr><th>الموقع</th><th>الحالة</th><th>العمق</th><th>التسليم</th><th>القيمة</th></tr></thead><tbody>'+act.map(j=>'<tr class="click" data-act="sel" data-v="'+j.id+'"><td class="nm">'+esc(siteById(j.site).name)+'<span class="u">'+esc(j.client)+'</span></td><td>'+statusChip(j)+'</td><td class="n">'+Math.round(j.depth)+' / '+j.target+'</td><td>'+when(j.deadline)+'</td><td class="n">'+money(j.reward)+'</td></tr>').join('')+'</tbody></table>':'<div class="empty">ما في عقود نشطة.</div>');
+      const done=S.jobs.filter(j=>j.state==='done');setHTML('ct-done',done.length?'<table class="tbl"><thead><tr><th>الموقع</th><th>العمق</th><th>تاريخ الإنجاز</th></tr></thead><tbody>'+done.slice(-10).reverse().map(j=>'<tr><td class="nm">'+esc(siteById(j.site).name)+'</td><td class="n">'+j.target+' m</td><td>'+stamp(j.doneAt)+'</td></tr>').join('')+'</tbody></table>':'<div class="empty">لسا ما خلّصت ولا بير.</div>');}},
+  fleet:{build:()=>'<div class="pg-h"><div><h1>الأسطول</h1><p>الحفارات والشاحنات ومكان كل وحدة.</p></div></div><div class="sec-t">الحفارات</div><div class="gcards" id="fl-rigs"></div><div class="sec-t">الشاحنات</div><div class="card"><div class="tbl-wrap" id="fl-trucks"></div></div>',
+    update(){setHTML('fl-rigs',S.rigs.map(r=>{const R=RIG[r.kind],j=r.jobId?jobById(r.jobId):null;let st={idle:'جاهزة',moving:'بالطريق',rigup:'تركيب',drilling:'تحفر',tripping:'تبديل رأس',casing:'إنزال تغليف',wait:r.waitTxt||'معالجة',inc:'طارئ!'}[r.state];if(j&&j.stall)st='متوقفة: '+STALL[j.stall];
+        const loc=r.state==='moving'?(r.home?'إلى القاعدة':'إلى «'+siteById(j.site).name+'»')+' · توصل '+when(r.t1):r.at==='depot'?'في القاعدة':'في «'+siteById(r.at).name+'»';
+        return '<div class="card"><div class="row"><h2 style="margin:0;font-size:17px">«'+esc(r.name)+'»</h2><span class="chip '+(r.kind==='oil'?'oil':'water')+'">'+R.n+'</span></div><div>'+esc(st)+' <span class="muted">· '+esc(loc)+'</span></div>'+
+        '<div class="row muted" style="font-size:13px"><span>رأس '+BIT[r.bit.type].n+'</span><span class="num">'+Math.max(0,Math.round(r.bit.life))+'%</span></div><div class="bar"><i style="width:'+clamp(r.bit.life,0,100)+'%;background:'+(r.bit.life<25?'var(--bad)':'var(--good)')+'"></i></div>'+
+        '<div class="row muted" style="font-size:13px"><span>راتب الطاقم</span><span class="num">'+money(R.wage)+'/day</span></div><div class="btns">'+(r.state==='moving'?'<button class="btn sm" data-act="focus" data-type="rig" data-v="'+r.id+'">شوفها بالطريق</button>':'')+(r.jobId&&r.state!=='moving'?'<button class="btn sm" data-act="sel" data-v="'+r.jobId+'">افتح الموقع</button>':'')+(r.state==='idle'&&r.at!=='depot'?'<button class="btn sm" data-act="home" data-v="'+r.id+'">رجّعها للقاعدة</button>':'')+'</div></div>';}).join(''));
+      setHTML('fl-trucks','<table class="tbl"><thead><tr><th>الشاحنة</th><th>الحمولة</th><th>الحالة</th><th></th></tr></thead><tbody>'+S.trucks.map(t=>'<tr><td class="nm">'+esc(t.name)+'</td><td class="n">'+t.cap+' t</td><td>'+esc(truckStatus(t))+'</td><td style="text-align:left">'+(t.state==='idle'?'<button class="btn pri sm" data-act="dispatch" data-truck="'+t.id+'">ابعت شحنة</button>':'<button class="btn sm" data-act="focus" data-type="truck" data-v="'+t.id+'">شوفها</button>')+'</td></tr>').join('')+'</tbody></table>');}},
+  depot:{build:()=>'<div class="pg-h"><div><h1>المستودع</h1><p>كل المخزون والشراء والشحن بمكان واحد.</p></div><button class="btn pri" data-act="dispatch">ابعت شحنة لموقع</button></div>'+
+    '<div class="g2"><div class="card"><div class="card-h"><h2>المخزون والشراء</h2></div><div class="tbl-wrap" id="dp-inv"></div></div><div class="col"><div class="card"><div class="card-h"><h2>الشاحنات بالقاعدة</h2></div><div id="dp-trucks"></div></div><div class="card"><div class="card-h"><h2>استهلاك الحفارات</h2></div><div class="tbl-wrap" id="dp-ref"></div><p class="muted" style="margin:0;font-size:13px">الطبقات المتشققة بتهدر طين أكثر بمرتين إلى ثلاث. الصوّان والبازلت بياكلوا رؤوس الحفر بسرعة.</p></div></div></div>',
+    update(){setHTML('dp-inv','<table class="tbl inv"><thead><tr><th>المادة</th><th>بالمستودع</th><th>السعر</th><th style="text-align:left">شراء</th></tr></thead><tbody>'+ITEM_KEYS.map(k=>{const it=ITEMS[k],lock=k==='bitP'&&!S.pdc;return '<tr><td><span class="nm">'+it.n+'</span><span class="u">'+it.u+' · '+(it.w>=1?it.w.toFixed(1)+' طن':Math.round(it.w*1000)+' كغ')+'</span></td><td class="n" data-l="بالمستودع">'+num(S.depot[k])+'</td><td class="n" data-l="السعر">'+(it.price<1?'$'+it.price.toFixed(2):money(it.price))+'</td><td style="text-align:left">'+(lock?'<span style="color:var(--warn);font-size:13px">يحتاج رخصة</span>':'<div class="btns" style="justify-content:flex-end;flex-wrap:nowrap"><button class="btn sm" data-act="buy" data-item="'+k+'" data-q="'+it.step+'">+'+num(it.step)+'</button><button class="btn sm" data-act="buy" data-item="'+k+'" data-q="'+it.step*5+'">+'+num(it.step*5)+'</button></div>')+'</td></tr>';}).join('')+'</tbody></table>');
+      const idle=S.trucks.filter(t=>t.state==='idle');setHTML('dp-trucks',(idle.length?idle.map(t=>'<div class="row" style="padding:6px 0"><span><b>'+esc(t.name)+'</b> <span class="muted">· '+t.cap+' طن</span></span><button class="btn pri sm" data-act="dispatch" data-truck="'+t.id+'">حمّل وابعت</button></div>').join(''):'<div class="empty">كل الشاحنات برّا.</div>')+'<div class="muted" style="font-size:13px">'+S.trucks.filter(t=>t.state!=='idle').map(t=>esc(t.name)+': '+truckStatus(t)).join('<br>')+'</div>');
+      setHTML('dp-ref','<table class="tbl"><thead><tr><th></th><th>ديزل/م</th><th>طين/م</th><th>تغليف</th></tr></thead><tbody>'+['water','oil'].map(k=>'<tr><td class="nm">'+RIG[k].n+'</td><td class="n">'+RIG[k].dpm+' L</td><td class="n">'+RIG[k].mpm+'</td><td class="n">1/'+ITEMS[RIG[k].casing].len+'m</td></tr>').join('')+'</tbody></table>');}},
+  wells:{build:()=>'<div class="pg-h"><div><h1>الآبار</h1><p>كل بير بيعطي دخل يومي وبيحتاج صيانة دورية.</p></div></div><div class="card"><div class="tbl-wrap" id="wl"></div></div>',
+    update(){setHTML('wl',S.wells.length?'<table class="tbl"><thead><tr><th>البئر</th><th>العمق</th><th>الحالة</th><th>الدخل اليومي</th><th></th></tr></thead><tbody>'+S.wells.map(w=>{const eff=w.cond>=40?1:.35;return '<tr><td class="nm">'+esc(siteById(w.site).name)+'<span class="u">'+(w.kind==='oil'?'نفط':'مياه')+' · '+esc(w.client)+'</span></td><td class="n">'+w.depth+' m</td><td style="min-width:120px"><div class="row" style="font-size:13px"><span class="num">'+Math.round(w.cond)+'%</span></div><div class="bar"><i style="width:'+w.cond+'%;background:'+(w.cond<40?'var(--bad)':w.cond<65?'var(--warn)':'var(--good)')+'"></i></div></td><td class="n">'+money(w.income*eff)+'</td><td style="text-align:left">'+(w.svc?'<span class="chip mut">الصيانة بالطريق</span>':'<button class="btn sm" data-act="service" data-v="'+w.id+'"'+(w.cond>85?' disabled':'')+'>صيانة · '+money(w.kind==='oil'?3200:450)+'</button>')+'</td></tr>';}).join('')+'</tbody></table>':'<div class="empty">لسا ما في آبار منتجة. كل بير بتخلّصه بيضيف دخل يومي.</div>');}},
+  company:{build:()=>'<div class="pg-h"><div><h1>الشركة</h1><p>الاستثمار والترقيات والحسابات.</p></div></div><div class="sec-t">الاستثمار والترقيات</div><div class="gcards" id="co-upg"></div><div class="g2"><div class="card"><div class="card-h"><h2>صافي الربح اليومي</h2></div><div id="co-led"></div></div><div class="card"><div class="card-h"><h2>إحصاءات</h2></div><div id="co-stats"></div></div></div>',
+    update(){setHTML('co-upg',UPG.map(u=>{const o=owned(u.id),c=u.cost();return '<div class="card"><div class="row"><h2 style="margin:0;font-size:16px">'+u.n+(u.id==='crew'?' <span class="muted num" style="font-size:13px">L'+S.crew+'</span>':'')+'</h2><b class="num" style="color:var(--brass)">'+(o?'':money(c))+'</b></div><div class="muted" style="font-size:14px">'+u.d+'</div>'+(o?'<span class="chip good" style="align-self:flex-start">تم</span>':'<div class="btns"><button class="btn sm'+(S.cash>=c?' pri':'')+'" data-act="upg" data-v="'+u.id+'"'+(S.cash<c?' disabled':'')+'>شراء</button></div>')+'</div>';}).join(''));
+      setHTML('co-led',ledgerSvg());setHTML('co-stats','<div class="facts"><div class="fact"><label>أمتار محفورة</label><b class="num">'+num(S.stats.meters)+'</b></div><div class="fact"><label>آبار منجزة</label><b class="num">'+S.stats.done+'</b></div><div class="fact"><label>إيرادات العقود</label><b class="num">'+money(S.stats.earned)+'</b></div><div class="fact"><label>أيام التشغيل</label><b class="num">'+opDay(S.t)+'</b></div></div>');}},
+};
+function opsJob(){let j=S.sel?jobById(S.sel):null;if(!j||j.state!=='active')j=S.jobs.find(x=>x.state==='active')||null;return j;}
+function truckStatus(t){if(t.state==='idle')return 'جاهزة بالقاعدة';const dest=truckTarget(t).name;return {loading:'تحميل بالقاعدة',out:(t.mission==='service'?'صيانة: ':'')+'بالطريق إلى «'+dest+'»',unload:(t.mission==='service'?'صيانة في «':'تفريغ في «')+dest+'»',back:'راجعة من «'+dest+'»'}[t.state]+' · '+dur(Math.max(0,t.t1-S.t));}
+function logHTML(n){return S.log.slice(0,n).map(l=>'<div class="'+l.kind+'"><time>'+stamp(l.t)+'</time><span>'+esc(l.msg)+'</span></div>').join('');}
+function ledgerSvg(){const Lg=S.ledger.slice(-14);if(Lg.length<2)return '<div class="empty">الرسم بيظهر بعد يومين تشغيل.</div>';const W0=340,H=110,pad=4,vals=Lg.map(l=>l.inc-l.cost),mx=Math.max(1,...vals.map(Math.abs)),bw=(W0-pad*2)/Lg.length,mid=H/2;
+  let s='<svg viewBox="0 0 '+W0+' '+H+'" width="100%" style="direction:ltr;display:block" role="img" aria-label="صافي الربح اليومي"><line x1="0" x2="'+W0+'" y1="'+mid+'" y2="'+mid+'" stroke="#29404d"/>';vals.forEach((v,i)=>{const hh=Math.abs(v)/mx*(mid-pad);s+='<rect x="'+(pad+i*bw+1.5)+'" y="'+(v>=0?mid-hh:mid)+'" width="'+(bw-3)+'" height="'+Math.max(1,hh)+'" fill="'+(v>=0?'#6cc28d':'#ef5f52')+'" rx="1.5"><title>يوم '+Lg[i].d+': '+money(v)+'</title></rect>';});return s+'</svg>';}
+function renderOpsHead(j){
+  const s=siteById(j.site),rig=j.rig?rigById(j.rig):null,R=RIG[jobRigKind(j)],est=estFinish(j);
+  let act='';
+  if(!rig){const el=S.rigs.filter(r=>r.kind===jobRigKind(j)&&!r.jobId&&r.state==='idle');act=el.length?el.map(r=>{const km=Math.hypot(r.x-s.x,r.y-s.y)*KM*ROAD;return '<button class="btn pri" data-act="sendrig" data-v="'+j.id+'" data-rig="'+r.id+'">ابعت «'+esc(r.name)+'» · توصل بـ '+dur(moveH(r.kind,km))+'</button>';}).join(''):'<span class="muted">كل الحفارات المناسبة مشغولة.</span>';}
+  else if(rig.state==='moving')act='<span>«'+esc(rig.name)+'» بالطريق · توصل '+when(rig.t1)+'</span><button class="btn sm" data-act="focus" data-type="rig" data-v="'+rig.id+'">شوفها</button>';
+  else if(rig.state==='rigup')act='<span>تركيب الحفارة · بيخلص '+when(rig.t1)+'</span>';
+  setHTML('ops-head','<div class="row" style="flex-wrap:wrap"><div><h2 style="margin:0;font-size:21px;font-weight:800">'+esc(s.name)+'</h2><div class="muted" style="font-size:14px">'+esc(j.client)+' · '+esc(j.title)+'</div></div>'+statusChip(j)+'</div>'+
+    '<div class="facts"><div class="fact"><label>العمق الحالي</label><b class="num">'+j.depth.toFixed(1)+' / '+j.target+' m</b></div><div class="fact"><label>سرعة الاختراق</label><b class="num">'+(rig&&rig.state==='drilling'&&!j.stall?j.rop.toFixed(1):'0.0')+' m/h</b></div><div class="fact"><label>الانتهاء المتوقع</label><b>'+(est!=null?when(S.t+est):'—')+'</b></div><div class="fact"><label>موعد التسليم</label><b>'+when(j.deadline)+'</b></div><div class="fact"><label>قيمة العقد</label><b class="num" style="color:var(--brass)">'+money(j.reward)+'</b></div></div>'+
+    (j.stall?'<div style="color:var(--bad);font-weight:700">⛔ '+STALL[j.stall]+'</div>':'')+(act?'<div class="btns">'+act+'</div>':''));
+}
+function renderStock(j){
+  const R=RIG[jobRigKind(j)],rc=reach(j),tr=inTransit(j.id),rem=j.target-j.depth;
+  const rows=[['ديزل',num(j.stock.diesel)+' L',rc.diesel,tr.diesel],['طين حفر',num(j.stock.mud)+' كيس',rc.mud,tr.mud],['مواسير تغليف',num(j.stock[R.casing])+' وصلة',rc.casing,tr[R.casing]],['رؤوس احتياط',(j.stock.bitT+j.stock.bitP)+' رأس',rc.bits,tr.bitT+tr.bitP]];
+  let h='<div class="supply">';for(const [n,txt,m,t] of rows){const ok=m>=rem-0.5,pct=clamp(m/Math.max(1,rem)*100,0,100);h+='<span>'+n+' <small>'+txt+'</small>'+(t>0?' <span class="chip mut" style="font-size:11px">+'+num(t)+' بالطريق</span>':'')+'</span><span class="lft'+(ok?'':' short')+'">'+(ok?'✓ للنهاية':'~'+Math.floor(m)+' m')+'</span><div class="bar"><i style="width:'+pct+'%;background:'+(ok?'var(--good)':m<20?'var(--bad)':'var(--warn)')+'"></i></div>';}
+  const idle=S.trucks.filter(t=>t.state==='idle').length;
+  h+='</div><div class="btns"><button class="btn'+(idle?' pri':'')+'" data-act="dispatch" data-job="'+j.id+'"'+(idle?'':' disabled')+'>ابعت شحنة إمداد</button>'+(idle?'':'<span class="muted" style="font-size:13px">كل الشاحنات برّا</span>')+'</div>';
+  setHTML('ops-stock',h);
+}
+/* console: built once per rig, then only values update so the sliders stay usable */
+function renderConsole(job){
+  const el=$('#con');if(!el)return;const r=job.rig?rigById(job.rig):null;
+  const on=!!(r&&r.jobId===job.id&&['drilling','tripping','casing','wait','inc'].includes(r.state));const key=on?job.id+r.id+(S.autoDrill?'a':''):'off'+job.id;
+  if(el.dataset.key!==key){el.dataset.key=key;
+    if(!on){el.innerHTML='<div class="empty">المنصة بتشتغل لما توصل الحفارة وتخلص التركيب.</div>';setHTML('con-chip','');return;}
+    el.innerHTML='<div class="con-g"><div class="ring" id="c-ring"><div><b id="c-eff">0%</b><small>كفاءة</small></div></div><div class="cstats"><div class="row"><span>الطبقة</span><span id="c-layer" style="font-family:var(--f);direction:rtl;font-weight:700"></span></div><div class="row"><span>تآكل الرأس</span><span id="c-wear"></span></div><div class="row"><span>قطع صخرية بالبئر</span><span id="c-cut"></span></div><div class="bar"><i id="c-cutbar"></i></div></div></div>'+
+      [['wob','الثقل على الرأس'],['rpm','الدوران'],['pump','ضخ الطين']].map(([k,n])=>'<div class="ctl"><label for="c-'+k+'">'+n+' <span id="v-'+k+'"></span></label><input type="range" id="c-'+k+'" min="0" max="100" step="1" data-ctl="'+k+'" data-rig="'+r.id+'"></div>').join('')+
+      '<div class="con-tip" id="c-tip"></div>'+(S.autoDrill?'<label class="auto"><input type="checkbox" id="c-auto" data-rig="'+r.id+'"> الطيار الآلي</label>':'');}
+  if(!on)return;
+  const l=layerAt(job,job.depth),fm=FM[l.r],c=ctlOf(r),o=opt(fm),e=effAt(c,fm),wm=wearMul(c,fm);
+  $('#c-layer').textContent=fm.n;const ring=$('#c-ring');ring.style.setProperty('--p',Math.round(e*100));ring.style.setProperty('--rc',e>.8?'var(--good)':e>.5?'var(--warn)':'var(--bad)');$('#c-eff').textContent=Math.round(e*100)+'%';
+  const wEl=$('#c-wear');wEl.textContent='×'+wm.toFixed(1);wEl.style.color=wm>1.6?'var(--bad)':wm>1.15?'var(--warn)':'var(--good)';
+  const cut=r.cut||0;$('#c-cut').textContent=Math.round(cut)+'%';const cb=$('#c-cutbar');cb.style.width=cut+'%';cb.style.background=cut>70?'var(--bad)':cut>40?'var(--warn)':'var(--good)';
+  const fmt={wob:v=>(v/100*(r.kind==='oil'?40:14)).toFixed(1)+' t',rpm:v=>Math.round(v/100*(r.kind==='oil'?180:220))+' rpm',pump:v=>Math.round(v/100*(r.kind==='oil'?2800:700))+' L/min'};
+  const lock=!!(S.autoDrill&&r.auto!==false);for(const k of ['wob','rpm','pump']){const inp=$('#c-'+k);if(document.activeElement!==inp)inp.value=Math.round(c[k]);$('#v-'+k).textContent=fmt[k](c[k]);inp.disabled=lock;}
+  const au=$('#c-auto');if(au&&document.activeElement!==au)au.checked=r.auto!==false;
+  const dr=r.state==='drilling'&&!job.stall;setHTML('con-chip',dr?'<span class="chip hv">يحفر · '+job.rop.toFixed(1)+' m/h</span>':'');
+  const t=[];
+  if(r.state==='wait')t.push('⏳ '+(r.waitTxt||'معالجة')+' · '+dur(r.t1-S.t));else if(r.state==='tripping')t.push('⏳ تبديل رأس الحفر · '+dur(r.t1-S.t));else if(r.state==='casing')t.push('⏳ إنزال وصلة تغليف');else if(r.state==='inc')t.push('⚠ طارئ بانتظار قرارك');else if(job.stall)t.push('⛔ '+STALL[job.stall]);
+  else{if(c.wob<o.wob-12)t.push('الرأس عم يخدش بس: زيد الثقل');else if(c.wob>o.wob+12)t.push('الرأس عم ينطّ ويتآكل: خفّف الثقل');if(c.rpm>o.rpm+12)t.push('اهتزاز عالي: خفّف الدوران');else if(c.rpm<o.rpm-12)t.push('الدوران بطيء على هالصخر');if(cut>45)t.push('القطع عم تتراكم: زيد ضخ الطين');if(fracMul(job,l)>1.5&&c.pump>o.pump+10)t.push('طبقة متشققة: الضخ العالي بيهدر الطين');}
+  const ok=!t.length;if(ok)t.push('الإعدادات مناسبة لـ'+fm.n);const tip=$('#c-tip');tip.className='con-tip '+(ok?'ok':'bad');tip.textContent=t.join(' · ');
+}
+function renderPage(){
+  const P=PAGES[S.page]||PAGES.overview;const key=S.page+'|'+(P.key?P.key():'');
+  if(key!==builtKey){builtKey=key;lastHTML={};$('#page').innerHTML=P.build();const sm=$('#slot-map');if(sm)sm.appendChild(mapC);const sx=$('#slot-xsec');if(sx)sx.appendChild(xC);}
+  P.update();
+}
+function renderHud(sky){
+  const ctx=stageCtx();let h='';
+  if(ctx.mode==='depot'){h='<span class="eyebrow">القاعدة</span><h2>قاعدة الشركة · المستودع</h2><div class="line"><span>ديزل</span><span class="num">'+num(S.depot.diesel)+' L</span></div><div class="line"><span>طين</span><span class="num">'+num(S.depot.mud)+'</span></div><div class="line"><span>شاحنات جاهزة</span><span class="num">'+S.trucks.filter(t=>t.state==='idle').length+' / '+S.trucks.length+'</span></div>';}
+  else if(ctx.mode==='move'){const r=ctx.rig,p=clamp((S.t-r.t0)/Math.max(1e-4,r.t1-r.t0),0,1),dest=r.home?'القاعدة':siteById(ctx.job.site).name;h='<span class="eyebrow">ترحيل حفارة</span><h2>«'+esc(r.name)+'» بالطريق إلى «'+esc(dest)+'»</h2><div class="bar"><i style="width:'+(p*100).toFixed(1)+'%"></i></div><div class="line"><span>الوصول</span><span>'+when(r.t1)+' · بعد '+dur(r.t1-S.t)+'</span></div><div class="line"><span>المسافة المتبقية</span><span class="num">'+Math.round((r.km||0)*(1-p))+' km</span></div>'+(r.kind==='oil'?'<div class="line"><span>القافلة</span><span>شاحنات ثقيلة مع سيارة مرافقة</span></div>':'');}
+  else if(ctx.mode==='truck'){const t=ctx.truck,p=t.state==='out'||t.state==='back'?clamp((S.t-t.t0)/Math.max(1e-4,t.t1-t.t0),0,1):0;h='<span class="eyebrow">'+(t.mission==='service'?'فريق صيانة':'شحنة إمداد')+'</span><h2>'+esc(t.name)+'</h2><div>'+esc(truckStatus(t))+'</div><div class="bar"><i style="width:'+(p*100).toFixed(1)+'%"></i></div>'+(cargoWeight(t.cargo)>0?'<div class="line"><span>الحمولة</span><span class="num">'+cargoWeight(t.cargo).toFixed(1)+' t</span></div>':'');}
+  else{const j=ctx.job,r=ctx.rig,fm=FM[layerAt(j,j.depth).r],est=estFinish(j);h='<span class="eyebrow">'+(j.kind==='oil'?'موقع حفر نفط':'موقع حفر مياه')+'</span><h2>'+esc(siteById(j.site).name)+'</h2>'+
+    (r?(r.state==='rigup'?'<div class="line"><span>تركيب الحفارة</span><span>'+dur(r.t1-S.t)+'</span></div>':'<div class="line"><span>العمق</span><span class="num">'+j.depth.toFixed(1)+' / '+j.target+' m</span></div><div class="bar"><i style="width:'+(j.depth/j.target*100).toFixed(1)+'%"></i></div><div class="line"><span>الطبقة</span><span>'+fm.n+'</span></div><div class="line"><span>الحالة</span><span>'+statusChip(j)+'</span></div>'+(est!=null?'<div class="line"><span>الانتهاء المتوقع</span><span>'+when(S.t+est)+'</span></div>':'')):'<div class="line"><span>الحالة</span><span>'+(j.state==='offer'?'عرض عقد · مسح الموقع':'بانتظار الحفارة')+'</span></div><div class="line"><span>العمق المطلوب</span><span class="num">'+j.target+' m</span></div>');}
+  setHTML('hud',h);
+  if(sky)setHTML('daybadge',(sky.night?'☾ ليل':sky.dusk?'◐ غروب/شروق':'☀ نهار')+' · '+hm(realOf(S.t)));
+  const tabs=[];S.jobs.filter(j=>j.state==='active').forEach(j=>tabs.push('<button aria-pressed="'+(ctx.job&&ctx.job.id===j.id&&ctx.mode!=='truck')+'" data-act="stage-job" data-v="'+j.id+'">'+esc(siteById(j.site).name)+'</button>'));
+  S.trucks.filter(t=>t.state!=='idle').forEach(t=>tabs.push('<button aria-pressed="'+(ctx.truck&&ctx.truck.id===t.id)+'" data-act="focus" data-type="truck" data-v="'+t.id+'">🚚 '+esc(t.name)+'</button>'));
+  tabs.push('<button aria-pressed="'+(ctx.mode==='depot')+'" data-act="focus" data-type="depot">القاعدة</button>');setHTML('stabs',tabs.join(''));
+}
+function renderAll(sky){if(!frozen){renderTop();renderNav();renderPage();}else{const j=S.page==='ops'&&opsJob();if(j)renderConsole(j);}renderHud(sky);
+  if(!$('#drawer').hidden)setHTML('drawer-log',logHTML(120));}
+
+/* ---------- modals ---------- */
+let D=null;
+function openDispatch(o){
+  const idle=S.trucks.filter(t=>t.state==='idle'),act=S.jobs.filter(j=>j.state==='active');
+  if(!idle.length){toast('ما في شاحنة فاضية','استنى وحدة ترجع أو اشترِ شاحنة.','warn');return;}if(!act.length){toast('ما في عقد نشط','اقبل عقد أول.','warn');return;}
+  const sel=S.sel&&jobById(S.sel);D={truck:o.truck||idle.slice().sort((a,b)=>b.cap-a.cap)[0].id,job:o.job||(sel&&sel.state==='active'?sel.id:act[0].id),cargo:emptyStock()};suggest();renderModal();$('#modal').hidden=false;
+}
+function suggest(){const t=truckById(D.truck),j=jobById(D.job),n=needs(j),tr=inTransit(j.id),c=emptyStock();let cap=t.cap;
+  for(const k of [jobRigKind(j)==='oil'?'casingO':'casingW','bitP','bitT','diesel','mud']){if(!(k in n))continue;let want=Math.max(0,Math.ceil(n[k]-j.stock[k]-tr[k]));if(k==='diesel')want=Math.ceil(want/100)*100;want=Math.min(want,Math.floor(S.depot[k]),Math.floor(cap/ITEMS[k].w));if(want>0){c[k]=want;cap-=want*ITEMS[k].w;}}D.cargo=c;}
+function renderModal(){
+  const t=truckById(D.truck),j=jobById(D.job),s=siteById(j.site),km=kmBetween(DEPOT,s),w=cargoWeight(D.cargo),over=w>t.cap+1e-6,n=needs(j),tr=inTransit(j.id),ck=jobRigKind(j)==='oil'?'casingO':'casingW';
+  const keys=['diesel','mud',ck,'bitT'].concat(S.pdc?['bitP']:[]);
+  let h='<div class="mcard" role="dialog" aria-modal="true" aria-labelledby="dlg-t"><header><h3 id="dlg-t">شحنة إمداد</h3><span class="muted" style="font-size:13px">الوصول حوالي '+when(S.t+T_LOAD+truckH(km))+'</span></header><div class="body">'+
+  '<div><div class="sec-t" style="margin-bottom:6px">الشاحنة</div><div class="pickrow">'+S.trucks.filter(x=>x.state==='idle').map(x=>'<button class="pick" aria-pressed="'+(x.id===D.truck)+'" data-act="d-truck" data-v="'+x.id+'">'+esc(x.name)+'<small>'+x.cap+' طن</small></button>').join('')+'</div></div>'+
+  '<div><div class="sec-t" style="margin-bottom:6px">الوجهة</div><div class="pickrow">'+S.jobs.filter(x=>x.state==='active').map(x=>'<button class="pick" aria-pressed="'+(x.id===D.job)+'" data-act="d-job" data-v="'+x.id+'">'+esc(siteById(x.site).name)+'<small>'+Math.round(kmBetween(DEPOT,siteById(x.site)))+' كم · '+Math.round(x.depth)+'/'+x.target+' م</small></button>').join('')+'</div></div><div class="cargo">';
+  for(const k of keys){const it=ITEMS[k],need=Math.max(0,Math.ceil((n[k]||0)-j.stock[k]-tr[k]));h+='<div class="nm">'+it.n+'<small>بالمستودع '+num(S.depot[k])+' · الموقع بيحتاج '+num(need)+' · '+it.u+'</small></div><div class="step"><button data-act="d-dec" data-k="'+k+'" aria-label="إنقاص">−</button><input id="q-'+k+'" type="number" min="0" inputmode="numeric" value="'+D.cargo[k]+'" data-k="'+k+'" aria-label="'+it.n+'"><button data-act="d-inc" data-k="'+k+'" aria-label="زيادة">+</button></div>';}
+  h+='</div><div><div class="row" style="margin-bottom:5px;font-size:14px"><span>الحمولة</span><span class="num" style="color:'+(over?'var(--bad)':'var(--text)')+'">'+w.toFixed(2)+' / '+t.cap+' t</span></div><div class="capbar'+(over?' over':'')+'"><i style="width:'+clamp(w/t.cap*100,0,100)+'%"></i></div></div>'+
+  '<div class="facts"><div class="fact"><label>المسافة</label><b class="num">'+Math.round(km)+' km</b></div><div class="fact"><label>مدة الطريق</label><b>'+dur(T_LOAD+truckH(km))+'</b></div><div class="fact"><label>كلفة الرحلة</label><b class="num">'+money(km*2*1.1)+'</b></div></div></div>'+
+  '<footer><button class="btn" data-act="d-suggest">تعبئة مقترحة</button><span style="flex:1"></span><button class="btn" data-act="d-close">إلغاء</button><button class="btn pri" data-act="d-send"'+(over||w<=0?' disabled':'')+'>ابعت الشاحنة</button></footer></div>';
+  $('#modal').innerHTML=h;
+}
+function closeModal(){if(D&&D.choose)return;$('#modal').hidden=true;$('#modal').innerHTML='';D=null;dirty();}
+$('#modal').addEventListener('input',e=>{const k=e.target.dataset.k;if(!k||!D||!D.cargo)return;let v=Math.max(0,Math.floor(+e.target.value||0));v=Math.min(v,Math.floor(S.depot[k]));D.cargo[k]=v;const id=e.target.id;renderModal();const el=document.getElementById(id);if(el){el.focus();const n=String(el.value).length;try{el.setSelectionRange(n,n);}catch(_){}}});
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+function openMenu(){D={menu:1};$('#modal').innerHTML='<div class="mcard" role="dialog" aria-modal="true"><header><h3>عُمق · طريقة اللعب</h3></header><div class="body">'+
+  '<div style="line-height:1.9">١. <b>الوقت حقيقي.</b> الساعة باللعبة هي ساعتك، والحفر بيكمّل وإنت مسكّر الصفحة.<br>٢. اقبل عقد. كل موقع إله طبقات أرض حقيقية: البازلت والصوّان بطيئين وبياكلوا الرؤوس، والطباشير والرسوبيات سريعة.<br>٣. ابعت الحفارة (الترحيل بين 10 و40 دقيقة) وبعدين شاحنات بالديزل والطين والمواسير والرؤوس.<br>٤. من «العمليات» اضبط الثقل والدوران والضخ لكل طبقة. الطوارئ بتطلب قرارك خلال 45 ثانية، وإذا كنت غايب رئيس الطاقم بيتصرف.<br>٥. سلّم بالمهلة ترفع سمعتك. 3 نجوم وحفارة نفط بيفتحولك حقول النفط.</div>'+
+  '<div class="sec-t">الحفظ</div>'+(FB.on?fbMenuHTML()+'<div style="height:12px"></div>':'<div class="muted" style="font-size:14px;margin-bottom:12px">'+({ok:'لعبتك محفوظة أونلاين على حسابك. افتح نفس الرابط من الموبايل أو الكمبيوتر وبتكمّل نفس اللعبة.',wait:'عم يتصل بالحفظ الأونلاين…',err:'الحفظ الأونلاين متوقف هلأ. اللعبة محفوظة على هالجهاز وبترجع تتزامن لحالها.',off:'الحفظ الأونلاين مش متاح هون (لازم تكون مسجّل دخول). اللعبة محفوظة على هالجهاز بس.'}[CLOUD.state]||'')+'</div>')+'<div class="sec-t">لعبة جديدة</div><div class="btns"><button class="btn" data-act="reset1">ابدأ من الصفر</button></div></div><footer><button class="btn pri" data-act="d-close">رجوع</button></footer></div>';$('#modal').hidden=false;}
+function showAway(gapH,before,cash0){
+  const items=S.log.filter(l=>l.t>before).slice(0,14);if(!items.length&&Math.abs(S.cash-cash0)<1)return;D={away:1};
+  $('#modal').innerHTML='<div class="mcard" role="dialog" aria-modal="true"><header><h3>أثناء غيابك</h3><span class="muted">'+dur(gapH)+'</span></header><div class="body"><div class="facts"><div class="fact"><label>تغيّر الرصيد</label><b class="num" style="color:'+(S.cash>=cash0?'var(--good)':'var(--bad)')+'">'+(S.cash>=cash0?'+':'')+money(S.cash-cash0)+'</b></div></div><div class="loglist">'+items.map(l=>'<div class="'+l.kind+'"><time>'+stamp(l.t)+'</time><span>'+esc(l.msg)+'</span></div>').join('')+'</div></div><footer><button class="btn pri" data-act="d-close">تمام</button></footer></div>';$('#modal').hidden=false;
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b||b.disabled)return;const a=b.dataset.act,v=b.dataset.v;
+  switch(a){
+    case 'page':go(v);return;
+    case 'sel':S.sel=v;S.focus=null;go('ops');return;
+    case 'stage-job':S.sel=v;S.focus=null;break;
+    case 'viewsite':S.sel=v;S.focus=null;$('#main').scrollTo({top:0,behavior:'smooth'});break;
+    case 'focus':S.focus={type:b.dataset.type,id:v};$('#main').scrollTo({top:0,behavior:'smooth'});break;
+    case 'accept':acceptJob(v);break;
+    case 'sendrig':sendRig(v,b.dataset.rig);break;
+    case 'home':rigHome(v);break;
+    case 'buy':buy(b.dataset.item,+b.dataset.q);break;
+    case 'upg':buyUpg(v);break;
+    case 'service':serviceWell(v);break;
+    case 'inc':resolveInc(v);return;
+    case 'dispatch':openDispatch({truck:b.dataset.truck,job:b.dataset.job});return;
+    case 'menu':FB.msg='';openMenu();return;
+    case 'fb-in':fbAuth('in');return;
+    case 'fb-up':fbAuth('up');return;
+    case 'fb-reset':fbAuth('reset');return;
+    case 'fb-out':fbAuth('out');return;
+    case 'cl-remote':fbChoose(true);return;
+    case 'cl-local':fbChoose(false);return;
+    case 'drawer':$('#drawer').hidden=false;S.seenLog=S.t;setHTML('drawer-log',logHTML(120));return;
+    case 'drawer-close':$('#drawer').hidden=true;return;
+    case 'reset1':b.textContent='متأكد؟ اضغط كمان مرة لمسح كل التقدم';b.dataset.act='reset2';b.classList.add('pri');return;
+    case 'reset2':try{localStorage.removeItem(KEY);}catch(_){}newGame();closeModal();sceneKey='';builtKey='';toast('لعبة جديدة','بالتوفيق يا مدير.','good');save(true);return;
+    case 'd-close':closeModal();return;
+    case 'd-truck':D.truck=v;suggest();renderModal();return;
+    case 'd-job':D.job=v;suggest();renderModal();return;
+    case 'd-suggest':suggest();renderModal();return;
+    case 'd-inc':case 'd-dec':{const k=b.dataset.k;D.cargo[k]=clamp(D.cargo[k]+(a==='d-inc'?ITEMS[k].step:-ITEMS[k].step),0,Math.floor(S.depot[k]));renderModal();return;}
+    case 'd-send':{if(dispatch(D.truck,D.job,D.cargo)){const j=jobById(D.job),t=D.truck;closeModal();S.focus={type:'truck',id:t};toast('الشاحنة انطلقت','إلى «'+siteById(j.site).name+'»','good');}return;}
+  }
+  dirty();
+});
+document.addEventListener('input',e=>{const k=e.target.dataset&&e.target.dataset.ctl;if(!k)return;const r=rigById(e.target.dataset.rig);if(!r)return;ctlOf(r)[k]=+e.target.value;const j=r.jobId&&jobById(r.jobId);if(j)renderConsole(j);});
+document.addEventListener('change',e=>{if(e.target.id!=='c-auto')return;const r=rigById(e.target.dataset.rig);if(r){r.auto=e.target.checked;}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(D)closeModal();if(!$('#drawer').hidden)$('#drawer').hidden=true;}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)save(true);});
+window.addEventListener('pagehide',()=>save(true));
+
+/* ======================= LOOP ======================= */
+let lastUI=0,lastSave=0,lastSky=null;
+function tick(){
+  const now=Date.now();const dH=(now-S.wall)/3.6e6*SCALE;S.wall=now;
+  if(dH>0){if(dH/SCALE*3600>20){OFF=true;advance(Math.min(dH,24*30));OFF=false;dirty();}else advance(dH);}
+  if(S.inc){const left=(S.inc.until-now)/1000;const b=$('#inc-bar');if(b){b.style.width=clamp(left/INC_SECS*100,0,100)+'%';$('#inc-s').textContent=Math.max(0,Math.ceil(left))+'s';}if(left<=0)resolveInc(INC[S.inc.type].crew);}
+  if(now-lastSave>20000){lastSave=now;save();}
+}
+function frame(t){
+  try{tick();}catch(err){console.error(err);}
+  try{lastSky=render3D(t)||lastSky;}catch(err){console.error(err);}
+  drawMap(t);drawXsec(t);
+  if(needsRender||t-lastUI>400){needsRender=false;lastUI=t;renderAll(lastSky);}
+  requestAnimationFrame(frame);
+}
+let booted=false;
+function boot(data){
+  if(booted){if(data&&data.state&&data.state.v===3){S=data.state;sceneKey='';builtKey='';dirty();}return;}booted=true;
+  const L0=load();CLOUD.localWall=L0&&L0.wall||0;
+  S=(data&&data.state&&data.state.v===3?data.state:null)||L0||newGame();
+  if(!S.sel||!jobById(S.sel)){const a=S.jobs.find(j=>j.state==='active')||S.jobs.find(j=>j.state==='offer');S.sel=a?a.id:null;}
+  const before=S.t,cash0=S.cash,gapH=Math.max(0,(Date.now()-S.wall)/3.6e6*SCALE);
+  if(gapH>0){OFF=true;advance(Math.min(gapH,24*30));OFF=false;}S.wall=Date.now();
+  if(S.inc&&Date.now()>S.inc.until)resolveInc(INC[S.inc.type].crew);else if(S.inc)showIncident(false);
+  try{window.claude&&window.claude.hot&&window.claude.hot.snapshot&&window.claude.hot.snapshot(()=>({state:S}));}catch(_){}
+  buildNav();buildTerrain();init3D();save();setTimeout(cloudInit,0);
+  if(gapH>0.2)showAway(gapH,before,cash0);
+  requestAnimationFrame(frame);
+}
+const HOT=window.claude&&window.claude.hot;
+try{if(HOT&&HOT.ready)HOT.ready(boot);}catch(_){}
+setTimeout(()=>{if(!booted)boot((HOT&&HOT.data)||{});},HOT&&HOT.ready?400:0);
+})();
+</script>
