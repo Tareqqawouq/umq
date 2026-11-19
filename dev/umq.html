@@ -18,7 +18,9 @@
 html,body{height:100%}
 body{background:var(--ink);color:var(--text);font-family:var(--f);font-size:15px;line-height:1.6;overflow:hidden}
 *{box-sizing:border-box}
-button{font:inherit;color:inherit;cursor:pointer}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;transition:transform .08s,filter .08s}
+button:active:not(:disabled),[data-act]:active{transform:scale(.95);filter:brightness(1.35)}
+html{-webkit-tap-highlight-color:transparent}
 button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--hivis);outline-offset:2px}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:plaintext}
 .muted{color:var(--muted)}
@@ -323,6 +325,8 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 /* Real time: 1 game hour = 1 real hour. "#dev" in the link runs 720× faster for testing. */
 const DEV=location.hash==='#dev';
+/* Phones and tablets: lighter 3D (lower resolution, simpler shadows, 30 fps) so the screen stays responsive to taps. */
+const LOWP=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)||Math.min(screen.width,screen.height)<820;let stageVis=true,last3D=0,lastCv=0;
 const SCALE=DEV?720:1;
 
 /* ======================= WORLD ======================= */
@@ -934,8 +938,9 @@ function puffTex(){if(MC.puff)return MC.puff;const c=document.createElement('can
 function init3D(){
   stageEl=$('#stage3d');
   if(!HAS3D){stageEl.innerHTML='<div class="no3d">العرض ثلاثي الأبعاد مش متاح على هالجهاز أو المتصفح.</div>';return;}
-  R3=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});R3.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
-  R3.shadowMap.enabled=true;R3.shadowMap.type=THREE.PCFSoftShadowMap;R3.outputEncoding=THREE.sRGBEncoding;R3.toneMapping=THREE.ACESFilmicToneMapping;R3.toneMappingExposure=.92;
+  R3=new THREE.WebGLRenderer({antialias:!LOWP,powerPreference:'high-performance'});R3.setPixelRatio(Math.min(LOWP?1.5:2,window.devicePixelRatio||1));
+  R3.shadowMap.enabled=true;R3.shadowMap.type=LOWP?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
+  if('IntersectionObserver' in window)new IntersectionObserver(es=>{stageVis=es[0].isIntersecting;}).observe(stageEl);R3.outputEncoding=THREE.sRGBEncoding;R3.toneMapping=THREE.ACESFilmicToneMapping;R3.toneMappingExposure=.92;
   stageEl.appendChild(R3.domElement);cam=new THREE.PerspectiveCamera(38,1,0.5,2000);
   const el=R3.domElement;
   el.addEventListener('pointerdown',e=>{orb.drag={x:e.clientX,y:e.clientY,az:orb.az,el:orb.el};el.setPointerCapture(e.pointerId);orb.idleAt=performance.now();});
@@ -950,7 +955,7 @@ function skyTex(top,hor){const c=document.createElement('canvas');c.width=2;c.he
 function baseScene(){
   scene=new THREE.Scene();scene.fog=new THREE.Fog('#cfe0e6',120,700);
   W.hemi=new THREE.HemisphereLight('#cfe6ff','#9b7b55',.6);scene.add(W.hemi);
-  W.sun=new THREE.DirectionalLight('#fff1dc',2.2);W.sun.castShadow=true;W.sun.shadow.mapSize.set(2048,2048);const sc=W.sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=1;sc.far=500;W.sun.shadow.bias=-0.0004;W.sun.shadow.normalBias=0.02;scene.add(W.sun);scene.add(W.sun.target);
+  W.sun=new THREE.DirectionalLight('#fff1dc',2.2);W.sun.castShadow=true;W.sun.shadow.mapSize.set(LOWP?1024:2048,LOWP?1024:2048);const sc=W.sun.shadow.camera;sc.left=-70;sc.right=70;sc.top=70;sc.bottom=-70;sc.near=1;sc.far=500;W.sun.shadow.bias=-0.0004;W.sun.shadow.normalBias=0.02;scene.add(W.sun);scene.add(W.sun.target);
   W.lamps=[];W.heads=[];W.anim=[];W.skyKey='';
 }
 function addDunes(rad){const m=mat('#c9a874',.95);for(let i=0;i<22;i++){const a=i/22*Math.PI*2+Math.random()*.2,r=rad+Math.random()*rad*.8;const d=new THREE.Mesh(new THREE.SphereGeometry(1,24,12),m);d.scale.set(30+Math.random()*60,5+Math.random()*14,20+Math.random()*40);d.position.set(Math.cos(a)*r,-2,Math.sin(a)*r);d.rotation.y=Math.random()*3;d.receiveShadow=true;scene.add(d);}}
@@ -1617,7 +1622,7 @@ function render3D(now){
 /* ======================= UI ======================= */
 let lastHTML={},needsRender=true;const dirty=()=>{needsRender=true;};
 function setHTML(id,html){const el=document.getElementById(id);if(!el)return;if(lastHTML[id]===html&&el.dataset.h==='1')return;lastHTML[id]=html;el.dataset.h='1';el.innerHTML=html;}
-let frozen=false;document.addEventListener('pointerdown',e=>{if(e.target.closest('[data-live]'))frozen=true;});['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>setTimeout(()=>{frozen=false;},80)));
+let frozen=false,touchAt=-1e9;document.addEventListener('pointerdown',e=>{const b=e.target.closest('button,[data-act],[data-live]');if(b){frozen=true;touchAt=performance.now();if(e.pointerType==='touch'&&navigator.vibrate)try{navigator.vibrate(8);}catch(_){}}},{capture:true,passive:true});['pointerup','pointercancel'].forEach(t=>document.addEventListener(t,()=>setTimeout(()=>{frozen=false;},80)));
 const ICONS={
   overview:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   ops:'<svg viewBox="0 0 24 24"><path d="M12 2 6 21M12 2l6 19M8.5 13h7M10 8h4M4 21h16"/></svg>',
@@ -1868,8 +1873,9 @@ function tick(){
 }
 function frame(t){
   try{tick();}catch(err){console.error(err);}
-  try{lastSky=render3D(t)||lastSky;}catch(err){console.error(err);}
-  drawMap(t);drawXsec(t);
+  const busy=performance.now()-touchAt<350;
+  if(stageVis&&!document.hidden&&!(busy&&LOWP)&&(!LOWP||t-last3D>=31)){last3D=t;try{lastSky=render3D(t)||lastSky;}catch(err){console.error(err);}}
+  if(!LOWP||t-lastCv>=100){lastCv=t;drawMap(t);drawXsec(t);}
   if(needsRender||t-lastUI>400){needsRender=false;lastUI=t;renderAll(lastSky);}
   requestAnimationFrame(frame);
 }
@@ -1890,6 +1896,8 @@ function boot(data){
 }
 const T0=Date.now();
 function hideSplash(now){const e=document.getElementById('splash');if(!e||e.classList.contains('out'))return;const wait=now?0:Math.max(0,1600-(Date.now()-T0));setTimeout(()=>{e.classList.add('out');setTimeout(()=>e.remove(),700);},wait);}
+/* Show the result of a tap right away instead of waiting for the next animation frame. */
+document.addEventListener('click',()=>{if(!needsRender)return;needsRender=false;frozen=false;try{renderAll(lastSky);}catch(err){console.error(err);}});
 document.getElementById('splash').addEventListener('click',()=>{if(booted)hideSplash(true);});
 const HOT=window.claude&&window.claude.hot;
 try{if(HOT&&HOT.ready)HOT.ready(boot);}catch(_){}
