@@ -76,6 +76,7 @@ h1,h2,h3{text-wrap:balance}
 .stabs{position:absolute;bottom:12px;inset-inline-start:12px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 24px)}
 .stabs button{background:rgba(10,18,23,.78);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .stabs button[aria-pressed="true"]{border-color:var(--hivis);color:#ffd2b0}
+.fhint{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:700;color:#eee9dd;background:rgba(10,18,23,.72);border:1px solid rgba(255,255,255,.14);border-radius:20px;padding:5px 12px;pointer-events:none;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}.fhint.on{background:rgba(255,122,26,.9);color:#fff}
 .draghint{position:absolute;bottom:14px;inset-inline-end:14px;font-size:12px;color:rgba(238,233,221,.6);pointer-events:none}
 
 /* page */
@@ -264,6 +265,7 @@ h1,h2,h3{text-wrap:balance}
   .kpi{flex:1 1 28%;border:0;padding:0}.kpi b{font-size:15px}
   .clock{border:0;padding:0}
   .draghint{display:none}
+  .fhint{top:auto;bottom:54px;font-size:11.5px}
   .xbox{height:360px}
   #toasts{bottom:calc(76px + env(safe-area-inset-bottom,0px));left:12px;right:12px;width:auto}
   .tbl.inv thead{display:none}.tbl.inv tr{display:grid;grid-template-columns:auto auto 1fr;align-items:center;gap:6px 14px;padding:12px 0;border-bottom:1px solid var(--line)}.tbl.inv tr:last-child{border-bottom:0}.tbl.inv td{border:0;padding:0}.tbl.inv td:first-child{grid-column:1/-1}.tbl.inv td.n::before{content:attr(data-l);display:block;font-family:Cairo,sans-serif;font-size:11px;color:var(--muted);text-align:start}
@@ -305,6 +307,7 @@ h1,h2,h3{text-wrap:balance}
         <div class="hud" id="hud"></div>
         <div class="daybadge" id="daybadge"></div>
         <div class="stabs" id="stabs" data-live></div>
+        <div id="focusHint" class="fhint" hidden></div>
         <div class="draghint">اسحب لتدوير الكاميرا · عجلة الماوس للتقريب</div>
       </section>
       <section id="page" data-live></section>
@@ -920,7 +923,7 @@ function drawXsec(now){
 const HAS3D=(function(){if(typeof THREE==='undefined')return false;try{const c=document.createElement('canvas');return!!(c.getContext('webgl2')||c.getContext('webgl'));}catch(e){return false;}})();
 let R3=null,scene=null,cam=null,sceneKey='',W={},stageEl=null;
 const orb={az:2.3,el:0.3,dist:30,tdist:30,tgt:null,drag:null,idleAt:0};
-if(DEV)window.__dbg={get orb(){return orb;},get W(){return W;},get R3(){return R3;}};
+if(DEV)window.__dbg={get orb(){return orb;},get W(){return W;},get R3(){return R3;},get cam(){return cam;},get S(){return S;}};
 const MC={};
 function mat(c,r,m,em){r=r==null?.8:r;m=m||0;const k=c+'|'+r+'|'+m+'|'+(em||'');if(!MC[k])MC[k]=new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m,emissive:em||'#000000'});return MC[k];}
 function box(w,h,d,m,x,y,z,p){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;if(p)p.add(o);return o;}
@@ -943,12 +946,25 @@ function init3D(){
   if('IntersectionObserver' in window)new IntersectionObserver(es=>{stageVis=es[0].isIntersecting;}).observe(stageEl);R3.outputEncoding=THREE.sRGBEncoding;R3.toneMapping=THREE.ACESFilmicToneMapping;R3.toneMappingExposure=.92;
   stageEl.appendChild(R3.domElement);cam=new THREE.PerspectiveCamera(38,1,0.5,2000);
   const el=R3.domElement;
-  el.addEventListener('pointerdown',e=>{orb.drag={x:e.clientX,y:e.clientY,az:orb.az,el:orb.el};el.setPointerCapture(e.pointerId);orb.idleAt=performance.now();});
+  el.addEventListener('pointerdown',e=>{orb.down={x:e.clientX,y:e.clientY,t:performance.now()};orb.drag={x:e.clientX,y:e.clientY,az:orb.az,el:orb.el};el.setPointerCapture(e.pointerId);orb.idleAt=performance.now();});
   el.addEventListener('pointermove',e=>{if(!orb.drag)return;orb.az=orb.drag.az-(e.clientX-orb.drag.x)*0.006;orb.el=clamp(orb.drag.el+(e.clientY-orb.drag.y)*0.004,0.04,1.2);orb.idleAt=performance.now();});
-  el.addEventListener('pointerup',()=>{orb.drag=null;});el.addEventListener('pointercancel',()=>{orb.drag=null;});
+  el.addEventListener('pointerup',e=>{orb.drag=null;const d=orb.down;orb.down=null;if(d&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<9&&performance.now()-d.t<600)stageTap(e);});el.addEventListener('pointercancel',()=>{orb.drag=null;});
   el.addEventListener('wheel',e=>{e.preventDefault();orb.tdist=clamp(orb.tdist*(1+e.deltaY*0.0012),W.minD||8,W.maxD||200);orb.idleAt=performance.now();},{passive:false});
   new ResizeObserver(resize3D).observe(stageEl);resize3D();
 }
+/* Tap on the rig: fly the camera to the driller's console and rotary; tap again to go back. */
+const ray=HAS3D?new THREE.Raycaster():null;
+function stageTap(e){
+  if(W.mode!=='site'||!W.rt||!W.lay)return;
+  if(orb.focus){const f=orb.focus;orb.focus=null;orb.tgtGoal=f.tgt;orb.azGoal=f.az;orb.elGoal=f.el;orb.tdist=f.dist;orb.idleAt=performance.now();focusHint();return;}
+  const r=R3.domElement.getBoundingClientRect();ray.setFromCamera({x:(e.clientX-r.left)/r.width*2-1,y:-(e.clientY-r.top)/r.height*2+1},cam);
+  const hit=ray.intersectObject(W.lay,true).find(h=>h.object.visible);if(!hit)return;const L=W.lay.worldToLocal(hit.point.clone());
+  const onRig=(L.x>-4.8&&L.x<20&&Math.abs(L.z)<2.3)||(L.x>-4.5&&L.x<.5&&L.y>2.5&&Math.abs(L.z)<2.5);if(!onRig)return;
+  orb.focus={tgt:(orb.tgtGoal||orb.tgt).clone(),az:orb.az,el:orb.el,dist:orb.tdist};
+  const rt=W.rt,tl=W.lay.localToWorld(rt.g.localToWorld(V(rt.hole+.62,2.62,1.1)));const dir=V(-2.0,0,-1.45).applyQuaternion(W.lay.quaternion);
+  orb.tgtGoal=tl;orb.azGoal=Math.atan2(dir.z,dir.x);orb.elGoal=.4;orb.tdist=2.7;orb.idleAt=performance.now();focusHint();
+}
+function focusHint(){const h=document.getElementById('focusHint');if(!h)return;const on=W.mode==='site'&&W.rt;h.hidden=!on;if(on)h.textContent=orb.focus?'لوحة الحفّار والروتري · اكبس على المشهد للرجوع':'اكبس على الحفارة لتشوف لوحة التحكم والروتري';h.classList.toggle('on',!!orb.focus);}
 function resize3D(){if(!R3)return;const r=stageEl.getBoundingClientRect();R3.setSize(Math.max(1,r.width),Math.max(1,r.height),false);cam.aspect=r.width/Math.max(1,r.height);cam.updateProjectionMatrix();}
 function disposeScene(){if(!scene)return;scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material&&o.material.map&&o.material.userData.own)o.material.map.dispose();});scene=null;}
 function skyTex(top,hor){const c=document.createElement('canvas');c.width=2;c.height=256;const g=c.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);gr.addColorStop(0,top);gr.addColorStop(.62,hor);gr.addColorStop(1,hor);g.fillStyle=gr;g.fillRect(0,0,2,256);const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t;}
@@ -1058,7 +1074,7 @@ function makeRigTruck(){
   [[-4.6,1.25],[-10,1.25]].forEach(([x,z])=>{box(.12,.7,.12,dark,x,1.95,z,g);box(.12,.7,.12,dark,x,1.95,-z,g);});
   // rear rig floor + console + railings
   box(2.3,.25,3.2,mat('#7d8489',.6,.6),-12.5,1.85,0,g);
-  box(.9,1.2,.5,beige,-11.8,2.55,1.35,g);box(.8,.6,.05,mat('#1d2a33',.2,.6),-11.8,2.85,1.08,g);box(.7,.05,.3,yel,-11.8,2.22,1.1,g);
+  box(.9,.62,.5,beige,-11.8,2.28,1.35,g);box(.7,.05,.3,yel,-11.8,2.0,1.1,g);
   rail(g,[-13.6,1.97,1.55],[-11.3,1.97,1.55],1.05,yel);rail(g,[-13.6,1.97,-1.55],[-11.3,1.97,-1.55],1.05,yel);rail(g,[-13.6,1.97,1.55],[-13.6,1.97,-1.55],1.05,yel);
   for(let i=0;i<4;i++)box(.5,.05,.25,steel,-13.9,.35+i*.42,-1.2,g);beam(V(-14.1,0,-.95),V(-13.7,1.9,-.95),.06,steel,g);beam(V(-14.1,0,-1.45),V(-13.7,1.9,-1.45),.06,steel,g);
   // mast pivot pedestal
@@ -1106,12 +1122,36 @@ function makeRigTruck(){
   function syncRope(){const a=td.position.x+.5,b=Lm+.9;rope2.scale.y=Math.max(.1,b-a);rope2.position.set((a+b)/2,y1+.6,.3);}
   td.userData.sync=syncRope;
   // rig floor: rotary table with slips, breakout wrench, pipe handler arm, driller's console with gauges and levers, kill switch, extinguisher
-  cyl(.55,.55,.12,dark,18,g).position.set(hole,2.03,0);for(let i=0;i<3;i++){const sl=box(.14,.22,.18,mat('#5b6670',.4,.8),hole+Math.cos(i*2.1)*.2,2.15,Math.sin(i*2.1)*.2,g);sl.rotation.y=-i*2.1;}
+  cyl(.55,.55,.12,dark,18,g).position.set(hole,2.03,0);
+  // rotary drive bushing and drill-string spinner collar: they turn with the string while drilling
+  const rot=new THREE.Group();rot.position.set(hole,2.1,0);rot.userData.keep=1;g.add(rot);cyl(.46,.46,.07,mat('#3a4247',.4,.7),20,rot);
+  for(let i=0;i<4;i++){const a=i*Math.PI/2;const l=box(.2,.09,.13,i%2?mat('#ff7a1a',.5,.25):yel,Math.cos(a)*.33,.07,Math.sin(a)*.33,rot);l.rotation.y=-a;}box(.34,.08,.34,mat('#5b6670',.4,.8),0,.07,0,rot);
+  const spn=new THREE.Group();spn.position.set(hole,2.55,0);spn.userData.keep=1;g.add(spn);cyl(.14,.14,.42,steel,14,spn);for(let i=0;i<3;i++){const a=i*2.094;box(.05,.44,.05,i?white:mat('#ff7a1a',.5,.25),Math.cos(a)*.14,0,Math.sin(a)*.14,spn);}
+  // pipe-handling arm (cradle) on the mast side: lies along the rig toward the pipe truck, swings rods up into the mast
+  const arm=new THREE.Group();arm.position.set(hole,2.0,-1.95);arm.userData.keep=1;g.add(arm);
+  [.13,-.13].forEach(z=>box(5.6,.14,.08,yel,2.9,0,z,arm));for(let x=.4;x<5.6;x+=.9)box(.08,.1,.3,yel,x,-.02,0,arm);box(.4,.4,.5,mat('#2f5d8a',.5,.3),0,0,0,arm);
+  [1.2,4.6].forEach(x=>{box(.12,.28,.36,dark,x,.14,0,arm);});const held=cyl(.07,.07,5.4,steel,8,arm);held.rotation.z=Math.PI/2;held.position.set(2.9,.16,0);
+  const armRam=cyl(.08,.08,1,mat('#ced3d6',.3,.8),10,g);armRam.userData.keep=1;
+  function setArm(a){arm.rotation.z=a;held.visible=a>.02;const tip=V(hole+Math.cos(a)*1.8,2.0+Math.sin(a)*1.8,-1.95);orientTo(armRam,V(hole+2.4,1.75,-1.9),tip);}
+  setArm(0);
+  // driller's console panel with live gauges (rotation RPM, rotation pressure, feed pressure / string weight, air pressure, depth)
+  const pc=document.createElement('canvas');pc.width=512;pc.height=320;const ptex=new THREE.CanvasTexture(pc);ptex.encoding=THREE.sRGBEncoding;
+  const pm=new THREE.MeshStandardMaterial({map:ptex,roughness:.5,emissive:'#ffffff',emissiveMap:ptex,emissiveIntensity:.6});pm.userData.own=1;
+  const pg=new THREE.Group();pg.position.set(-11.8,2.8,1.32);pg.rotation.x=.6;pg.userData.keep=1;g.add(pg);box(.94,.58,.07,beige,0,0,.05,pg);const pnl=new THREE.Mesh(new THREE.PlaneGeometry(.84,.52),pm);pnl.rotation.y=Math.PI;pnl.position.z=.012;pg.add(pnl);
+  function drawPanel(o){const q=pc.getContext('2d');q.fillStyle='#1b2329';q.fillRect(0,0,512,320);q.strokeStyle='#3a4650';q.lineWidth=6;q.strokeRect(3,3,506,314);
+    q.fillStyle='#ff7a1a';q.fillRect(0,0,512,34);q.fillStyle='#fff';q.font='700 22px Cairo,Tahoma,sans-serif';q.textAlign='center';q.fillText('لوحة الحفّار',256,25);
+    const G=[['الدوران','RPM',o.rpm,150],['ضغط الدوران','bar',o.rp,210],['ضغط التغذية','kN',o.wob,100],['ضغط الهوا','psi',o.air,350]];
+    G.forEach(([n,u,v,mx],i)=>{const cx=64+i*128,cy=128,r=50;q.fillStyle='#eef0ea';q.beginPath();q.arc(cx,cy,r,0,7);q.fill();q.strokeStyle='#2b3034';q.lineWidth=4;q.stroke();
+      q.lineWidth=2;for(let k=0;k<=10;k++){const a=Math.PI*.75+k/10*Math.PI*1.5;q.strokeStyle=k>=8?'#c0392b':'#2b3034';q.beginPath();q.moveTo(cx+Math.cos(a)*r*.78,cy+Math.sin(a)*r*.78);q.lineTo(cx+Math.cos(a)*r*.92,cy+Math.sin(a)*r*.92);q.stroke();}
+      const a=Math.PI*.75+Math.max(0,Math.min(1,v/mx))*Math.PI*1.5;q.strokeStyle='#d63a2a';q.lineWidth=4;q.beginPath();q.moveTo(cx,cy);q.lineTo(cx+Math.cos(a)*r*.82,cy+Math.sin(a)*r*.82);q.stroke();q.fillStyle='#2b3034';q.beginPath();q.arc(cx,cy,5,0,7);q.fill();
+      q.fillStyle='#1d2a33';q.font='700 15px "IBM Plex Mono",monospace';q.fillText(Math.round(v)+' '+u,cx,cy+34);q.fillStyle='#e6e1d3';q.font='700 17px Cairo,Tahoma,sans-serif';q.fillText(n,cx,cy+72);});
+    q.fillStyle='#0b1013';q.fillRect(24,240,464,60);q.fillStyle=o.on?'#7dff9a':'#ffb347';q.font='700 26px "IBM Plex Mono",monospace';q.textAlign='left';q.fillText((o.depth||0).toFixed(1)+' m',40,280);
+    q.textAlign='right';q.font='700 20px Cairo,Tahoma,sans-serif';q.fillText(o.state||'',472,279);ptex.needsUpdate=true;}
+  drawPanel({rpm:0,rp:0,wob:0,air:0,depth:0,state:'متوقّفة'});
+  function spin(dt,rpm){const w=rpm/60*Math.PI*2;rot.rotation.y+=dt*w;spn.rotation.y+=dt*w;}
   box(1.3,.12,.25,mat('#2f5d8a',.5,.3),hole+.7,2.1,-.75,g);cyl(.12,.12,.25,mat('#2f5d8a',.5,.3),10,g).position.set(hole+1.35,2.15,-.75);
-  beam(V(hole+.6,1.95,1.0),V(hole+.3,3.2,.55),.12,yel,g);box(.3,.25,.3,dark,hole+.3,3.25,.5,g);
-  for(let i=0;i<4;i++){const gg=cyl(.07,.07,.04,gauge,12,g);gg.rotation.x=Math.PI/2;gg.position.set(-12.1+(i%2)*.3,2.95-Math.floor(i/2)*.22,1.1);}
-  for(let i=0;i<6;i++){beam(V(-12.15+i*.1,2.25,1.15),V(-12.15+i*.1,2.55,1.0),.03,black,g);cyl(.035,.035,.06,i<2?red:dark,6,g).position.set(-12.15+i*.1,2.57,.99);}
-  box(.22,.22,.1,red,-11.35,2.95,1.1,g);const ex1=cyl(.1,.1,.55,red,10,g);ex1.position.set(-13.3,2.3,1.35);
+  for(let i=0;i<6;i++){beam(V(-12.15+i*.1,2.1,1.12),V(-12.15+i*.1,2.38,.98),.03,black,g);cyl(.035,.035,.06,i<2?red:dark,6,g).position.set(-12.15+i*.1,2.4,.97);}
+  box(.18,.18,.1,red,-11.2,2.4,1.1,g);const ex1=cyl(.1,.1,.55,red,10,g);ex1.position.set(-13.3,2.3,1.35);
   box(1.4,.04,.04,mat('#c0392b',.5,.2),-12.5,3.05,1.55,g);
   // trailer side detail: rub rail, amber side markers, under-deck toolboxes, spare wheel, mudflaps, rear lights, ICC bumper, hydraulic hoses, decals
   [1,-1].forEach(s=>{box(14,.08,.06,steel,-6,1.12,s*1.27,g);for(let x=0;x>-13;x-=2.2)box(.12,.07,.04,amber,x,1.2,s*1.29,g);
@@ -1126,7 +1166,8 @@ function makeRigTruck(){
   cyl(.12,.12,1.6,steel,10,g).position.set(-1.8,4.2,-.6);const cap=box(.3,.04,.28,dark,-1.75,5.02,-.6,g);cap.rotation.z=.4;
   cyl(.25,.25,.6,mat('#3a4247',.5,.5),12,g).position.set(-2.2,3.7,.55);box(.1,1.3,1.9,mat('#2b3034',.6,.4),.45,2.4,0,g);box(.5,.4,.6,mat('#ff7a1a',.5,.2),-2.75,2.6,.95,g);
   const rest=Math.atan2(4.15-PY-y0,1.6-PX);setAngle(rest);syncRope();
-  return{g,piv,td,pipe,jacks,hole,Lm,py:PY,rest,setAngle,exh:tr.exh,stroke:12.5,tdTop:14.6,syncRope};
+  {const st=box(.03,1,.035,mat('#ff7a1a',.5,.25),.075,0,0,pipe);st.castShadow=false;}
+  return{g,piv,td,pipe,jacks,hole,Lm,py:PY,rest,setAngle,exh:tr.exh,stroke:12.5,tdTop:14.6,syncRope,spin,setArm,drawPanel,console:V(-11.8,2.7,1.1)};
 }
 function chromeMat(){return mat('#e4e8ea',.15,.95);}
 /* Towable portable air compressor (~1,100 cfm / 300 psi class used for air-rotary and DTH water-well drilling). */
@@ -1291,13 +1332,15 @@ function stepPuffs(p,dt,emit,vfn,life){const pos=p.geometry.attributes.position.
 /* ---------- site support equipment (from field descriptions of water-well rig sites and rig tenders) ---------- */
 function crate(p,x,y,z,w,h,d,c){return box(w,h,d,mat(c||'#9b7b55',.9),x,y,z,p);}
 /* Pipe ("stem") trailer: ~9 m flatbed with drill rods, collars and subs, parked at 90° off the rig's rear. */
-function makePipeTrailer(){
-  const g=new THREE.Group(),dark=mat('#2b3034',.75,.35),deck=mat('#55606a',.6,.4),steel=mat('#7b8a91',.35,.8),blue=mat('#2f5d8a',.5,.3);
-  box(9.2,.3,2.4,deck,0,1.15,0,g);[-2.6,-3.8].forEach(x=>{wheel(x,1.0,.48,g);wheel(x,-1.0,.48,g);});beam(V(4.6,1.1,0),V(6.4,.75,0),.14,dark,g);box(.3,.3,.4,dark,6.5,.75,0,g);
-  [1,-1].forEach(s=>{box(.15,1.0,.15,dark,3.6,.55,s*.6,g);for(let x=-4.2;x<=4.2;x+=1.4){box(.08,.9,.08,blue,x,1.75,s*1.18,g);}box(9.2,.08,.08,blue,0,2.2,s*1.18,g);});
-  for(let r=0;r<3;r++)for(let k=0;k<7-r;k++){const pp=cyl(.06,.06,6,steel,8,g);pp.rotation.z=Math.PI/2;pp.position.set(-1.2,1.37+r*.11,-.75+k*.24+r*.12);}
-  for(let k=0;k<3;k++){const c=cyl(.1,.1,3,mat('#4a5358',.4,.8),10,g);c.rotation.z=Math.PI/2;c.position.set(3.0,1.42,-.6+k*.3);}
-  box(.9,.7,.7,mat('#c0392b',.5,.2),3.6,1.65,.65,g);
+function makePipeTrailer(truck){
+  const g=new THREE.Group(),dark=mat('#2b3034',.75,.35),deck=mat('#55606a',.6,.4),steel=mat('#7b8a91',.35,.8),blue=mat('#2f5d8a',.5,.3),H=truck?.62:0;
+  box(9.2,.3,2.4,deck,0,1.15+H,0,g);if(H)box(9.2,H,.9,dark,0,1.0+H/2,0,g);[-2.6,-3.8].forEach(x=>{wheel(x,1.0,.48,g);wheel(x,-1.0,.48,g);});
+  if(truck)tractor(g,.9,truck);else{beam(V(4.6,1.1,0),V(6.4,.75,0),.14,dark,g);box(.3,.3,.4,dark,6.5,.75,0,g);[1,-1].forEach(s=>box(.15,1.0,.15,dark,3.6,.55,s*.6,g));}
+  [1,-1].forEach(s=>{for(let x=-4.2;x<=4.2;x+=1.4){box(.08,.9,.08,blue,x,1.75+H,s*1.18,g);}box(9.2,.08,.08,blue,0,2.2+H,s*1.18,g);box(9.2,.08,.06,mat('#ffae2a',.4,0,'#7a3d00'),0,1.12+H,s*1.21,g);});
+  for(let r=0;r<3;r++)for(let k=0;k<7-r;k++){const pp=cyl(.06,.06,6,steel,8,g);pp.rotation.z=Math.PI/2;pp.position.set(-1.2,1.37+H+r*.11,-.75+k*.24+r*.12);}
+  for(let k=0;k<3;k++){const c=cyl(.1,.1,3,mat('#4a5358',.4,.8),10,g);c.rotation.z=Math.PI/2;c.position.set(3.0,1.42+H,-.6+k*.3);}
+  box(.9,.7,.7,mat('#c0392b',.5,.2),3.6,1.65+H,.65,g);
+  if(H)[-4.65].forEach(x=>{[.8,-.8].forEach(z=>box(.06,.16,.3,mat('#d63a2a',.4,0,'#550000'),x,1.15,z,g));});
   return g;
 }
 /* Rig tender / service truck: tread-plate deck, side tool cabinets, knuckle-boom crane, welder-generator, fuel transfer tank. */
@@ -1485,7 +1528,7 @@ function buildSite(ctx){
     const pit=new THREE.Mesh(new THREE.PlaneGeometry(6,4),mat('#5b4029',.22,.1));pit.rotation.x=-Math.PI/2;pit.position.set(-2.3,.06,6.5);lay.add(pit);
     [[-2.3,8.6,6.4,.4],[-2.3,4.4,6.4,.4],[-5.4,6.5,.4,4.6],[0.8,6.5,.4,4.6]].forEach(([x,z,w,d])=>box(w,.5,d,mat('#a58b66',1),x,.25,z,lay));
     const comp=makeCompressor(look.compressor);comp.position.set(-6,0,-13.5);comp.rotation.y=.15;lay.add(comp);
-    const ptr=makePipeTrailer();ptr.position.set(-14,0,-6.5);ptr.rotation.y=Math.PI/2;lay.add(ptr);
+    const ptr=makePipeTrailer(look.pipeTruck||'#c0392b');ptr.position.set(.9,0,-4.1);lay.add(ptr);
     const mud=makeMudSystem();mud.position.set(-2.3,0,12.6);lay.add(mud);
     const svc=makeServiceTruck();svc.position.set(-10,0,18.5);svc.rotation.y=.12;lay.add(svc);
     const pk1=makePickup(look.pickup||'#f1efe8');pk1.position.set(27,0,3);pk1.rotation.y=-.5;lay.add(pk1);
@@ -1494,7 +1537,7 @@ function buildSite(ctx){
     fenceLine(lay,[[-6,-18],[-26,-18],[-26,-2]]);
     const wt=makeWaterTank();wt.position.set(-21,0,9);wt.rotation.y=-.12;lay.add(wt);
     const car=makeCaravan(look.caravan);car.position.set(18,0,10);car.rotation.y=-.35;lay.add(car);
-    if(rig){hose([[-8,1.5,-13.2],[-7.6,.12,-11],[-6,.12,-6],[-3,.12,-3],[-1.4,1.9,-1.3]],'#1d1f21',.08,lay);hose([[-2.3,.5,8.4],[-2.6,.12,10.2],[-4.3,1.5,11.4]],'#5b4029',.1,lay);hose([[-17.3,1.45,9.2],[-12,.12,8.4],[-5.6,.4,6.6]],'#2f5d8a',.07,lay);}
+    if(rig){hose([[-8,1.5,-13.2],[-7.6,.12,-11],[-6.6,.12,-6],[-5.2,.12,-2.4],[-3.4,.12,-2.2],[-1.4,1.9,-1.3]],'#1d1f21',.08,lay);hose([[-2.3,.5,8.4],[-2.6,.12,10.2],[-4.3,1.5,11.4]],'#5b4029',.1,lay);hose([[-17.3,1.45,9.2],[-12,.12,8.4],[-5.6,.4,6.6]],'#2f5d8a',.07,lay);}
     const dt=cyl(.9,.9,4,mat('#e3ac34',.5,.2),16,lay);dt.rotation.z=Math.PI/2;dt.position.set(12,1.1,-9);
     box(3,1.8,1.6,mat('#e3ac34',.6),9,.9,13,lay);lampTower(-20,-16,.8,lay);lampTower(24,-15,-2.3,lay);
     const cp=new THREE.Mesh(new THREE.PlaneGeometry(46,32),new THREE.MeshStandardMaterial({map:gravelTex([8,6]),roughness:1}));cp.material.userData.own=1;cp.rotation.x=-Math.PI/2;cp.position.set(45,.025,-28);cp.receiveShadow=true;lay.add(cp);clearScenery(cp,1);clearScenery(pad,0);buildCamp(lay,42,-24,0,look);W.mergeLay=1;
@@ -1502,8 +1545,8 @@ function buildSite(ctx){
   }
   if(ctx.unloading)W.supply=(()=>{const s=makeSupplyTruck(ctx.unloading.cargo,ctx.unloading.mission==='service');s.position.set(oil?-30:18,0,oil?18:-4);s.rotation.y=oil?.5:-.3;scene.add(s);return s;})();
   if(W.lay&&W.mergeLay)mergeStatic(W.lay);if(W.scen)mergeStatic(W.scen);
-  if(!oil){const spots=[[-4,-10.5],[-11.3,-7],[3,-11.2],[-7.5,6.5],[-2,9.9],[-17,6],[-8,15.8],[14,7],[24,4.5],[14,-3],[10,-7],[6,4],[-7,-3],[47,-12],[49,-17],[30,-6]];
-    const obs=[[-4.8,19.8,-1.7,1.7],[-6,1.4,3.8,9.2],[-6.5,1.9,10.8,14.4],[-25.6,-16.4,7.4,10.6],[-15.6,-12.4,-13.2,-.8],[-8.8,-2.2,-14.6,-12.3],[-14.4,-5.6,16.6,20.4],[-4.5,2.5,-11,-7],[0.4,7.4,-17,-12]];
+  if(!oil){const spots=[[-4,-10.5],[-6.6,-4.6],[5,-6.8],[3,-11.2],[-7.5,6.5],[-2,9.9],[-17,6],[-8,15.8],[14,7],[24,4.5],[14,-3],[10,-7],[6,4],[-7,-3],[47,-12],[49,-17],[30,-6]];
+    const obs=[[-4.8,19.8,-1.7,1.7],[-6,1.4,3.8,9.2],[-6.5,1.9,10.8,14.4],[-25.6,-16.4,7.4,10.6],[-4.4,10.6,-5.6,-2.4],[-8.8,-2.2,-14.6,-12.3],[-14.4,-5.6,16.6,20.4],[-4.5,2.5,-11,-7],[0.4,7.4,-17,-12]];
     const hit=(a,b)=>obs.find(o=>{for(let k=1;k<20;k++){const t=k/20,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(x>o[0]&&x<o[1]&&z>o[2]&&z<o[3])return true;}return false;});
     const avoid=(a,b)=>{const o=hit(a,b);if(!o)return null;let best=null,bl=1e9;[[o[0]-.8,o[2]-.8],[o[0]-.8,o[3]+.8],[o[1]+.8,o[2]-.8],[o[1]+.8,o[3]+.8]].forEach(([x,z])=>{const c=V(x,0,z);if(hit(a,c)||hit(c,b))return;const l=a.distanceTo(c)+c.distanceTo(b);if(l<bl){bl=l;best=c;}});return best;};
     W.crew=spawnCrew(W.lay,6+Math.floor(Math.random()*3),spots,W.rt?{x0:-3.3,x1:-1.4,z0:.65,z1:.6,y:1.98}:null,avoid,2,v=>obs.some(o=>v.x>o[0]-.4&&v.x<o[1]+.4&&v.z>o[2]-.4&&v.z<o[3]+.4));}
@@ -1587,13 +1630,15 @@ function render3D(now){
   if(!R3)return;const dt=Math.min(.1,(now-lastF)/1000);lastF=now;
   const ctx=stageCtx(),key=ctxKey(ctx);
   if(key!==sceneKey){sceneKey=key;disposeScene();W={};if(ctx.mode==='depot')buildDepot();else if(ctx.mode==='site')buildSite(ctx);else buildRoad(ctx);
-    const d={depot:[2.5,.42,95],site:[2.2,.3,ctx.job&&ctx.job.kind==='oil'?95:38],move:[2.55,.2,ctx.rig&&ctx.rig.kind==='oil'?40:32],truck:[2.55,.2,22]}[ctx.mode];orb.az=d[0];orb.el=d[1];orb.tdist=orb.dist=d[2];}
+    const d={depot:[2.5,.42,95],site:[2.2,.3,ctx.job&&ctx.job.kind==='oil'?95:38],move:[2.55,.2,ctx.rig&&ctx.rig.kind==='oil'?40:32],truck:[2.55,.2,22]}[ctx.mode];orb.az=d[0];orb.el=d[1];orb.tdist=orb.dist=d[2];orb.focus=null;orb.tgtGoal=orb.azGoal=orb.elGoal=null;focusHint();}
   const sky=updateSky(realOf(S.t));
   // animate
-  if(W.mode==='site'){const job=ctx.job,rig=ctx.rig;updateSiteDyn(job);
+  if(W.mode==='site'){const job=ctx.job,rig=ctx.rig;updateSiteDyn(job);if(W.crew)W.crew.forEach(w=>{if(w.fl)w.g.visible=!orb.focus;});
     if(W.rt){const rt=W.rt;let up=1;if(rig.state==='rigup')up=clamp((S.t-rig.t0)/Math.max(.01,rig.t1-rig.t0),0,1);const vert=rig.state!=='moving';rt.setAngle(rt.rest+(Math.PI/2-rt.rest)*(vert?Math.min(1,up*1.25):0));
       const ready=up>=1;const dr=rig.state==='drilling'&&!job.stall;let frac=((job.depth%12)/12);if(rig.state==='tripping')frac=.5+.5*Math.sin(now/1600);const tx=rt.tdTop-frac*rt.stroke;rt.td.position.x=ready?tx:rt.tdTop;rt.syncRope();
-      rt.pipe.visible=ready;const tdY=rt.py+tx;rt.pipe.scale.y=tdY;rt.pipe.position.y=tdY/2;if(dr)rt.pipe.rotation.y+=dt*(ctlOf(rig).rpm/10);
+      rt.pipe.visible=ready;const tdY=rt.py+tx;rt.pipe.scale.y=tdY;rt.pipe.position.y=tdY/2;const c=ctlOf(rig),rpmNow=dr?c.rpm:0;if(dr){rt.pipe.rotation.y+=dt*rpmNow/60*Math.PI*2;rt.spin(dt,rpmNow);}
+      rt.setArm(ready&&rig.state==='tripping'?(Math.PI/2)*(.5-.5*Math.cos(now/1600)):0);
+      if(now-(W.pnlT||0)>(orb.focus?250:2000)){W.pnlT=now;rt.drawPanel({rpm:rpmNow,rp:dr?40+c.rpm*.9+c.wob*.6:0,wob:dr?c.wob:0,air:ready&&(dr||rig.state==='tripping')?120+c.pump*1.6:0,depth:job.depth,on:dr,state:dr?'حفر':job.stall?'متوقّفة · '+({diesel:'ديزل',mud:'طين',casing:'تغليف',bit:'رأس حفر'}[job.stall]||''):rig.state==='tripping'?'سحب/تنزيل':rig.state==='rigup'?'تركيب':rig.state==='casing'?'تغليف':'انتظار'});}
       const wp=v=>W.lay.localToWorld(rt.g.localToWorld(v.clone()));const ex=wp(rt.exh),ho=wp(V(rt.hole,.3,0));
       stepPuffs(W.exh,dt,()=>V(ex.x+(Math.random()-.5)*.3,ex.y,ex.z),()=>V((Math.random()-.5)*.6,dr?2.4:.8,(Math.random()-.5)*.6),2.6);
       stepPuffs(W.dust,dt,()=>V(ho.x+(Math.random()-.5),.3,ho.z+(Math.random()-.5)),()=>V((Math.random()-.5)*1.4,dr?.9:.1,(Math.random()-.5)*1.4),2);W.dust.material.opacity=dr?.28:0;}
@@ -1612,7 +1657,10 @@ function render3D(now){
   }else if(W.mode==='depot'){updateDepotDyn();}
   (W.anim||[]).forEach(f=>{try{f(now);}catch(_){}});
   // camera
-  const idle=performance.now()-orb.idleAt>7000;if(idle&&!orb.drag&&W.mode!=='road')orb.az+=dt*0.04;
+  const idle=performance.now()-orb.idleAt>7000;if(idle&&!orb.drag&&!orb.focus&&W.mode!=='road')orb.az+=dt*0.04;
+  {const k=Math.min(1,dt*3.5);if(orb.tgtGoal){orb.tgt.lerp(orb.tgtGoal,k);if(orb.tgt.distanceTo(orb.tgtGoal)<.01)orb.tgtGoal=null;}
+   if(orb.azGoal!=null){if(orb.drag)orb.azGoal=null;else{const d=Math.atan2(Math.sin(orb.azGoal-orb.az),Math.cos(orb.azGoal-orb.az));orb.az+=d*k;if(Math.abs(d)<.002)orb.azGoal=null;}}
+   if(orb.elGoal!=null){if(orb.drag)orb.elGoal=null;else{orb.el+=(orb.elGoal-orb.el)*k;if(Math.abs(orb.elGoal-orb.el)<.002)orb.elGoal=null;}}}
   orb.dist+=(orb.tdist-orb.dist)*Math.min(1,dt*4);const tg=orb.tgt||V(0,0,0);
   cam.position.set(tg.x+Math.cos(orb.az)*Math.cos(orb.el)*orb.dist,tg.y+Math.sin(orb.el)*orb.dist,tg.z+Math.sin(orb.az)*Math.cos(orb.el)*orb.dist);cam.lookAt(tg);
   R3.render(scene,cam);
