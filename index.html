@@ -1417,6 +1417,67 @@ function buildCamp(p,x,z,ry,look){
   lampTower(23,-16,2.4,g);
   return g;
 }
+/* ---------- site crew: low-poly workers that wander, work, inspect and chat; new random choices every time ---------- */
+function makeWorker(){
+  const R=Math.random,pick=a=>a[Math.floor(R()*a.length)];
+  const suit=mat(pick(['#2f5d8a','#d9600f','#1f3f6b','#3a4247','#c84f12']),.85),vest=mat('#d7f03a',.6,0,'#2a3300'),skin=mat(pick(['#c58c5c','#a8714a','#e0b48a','#8a5a3a']),.8),hat=mat(pick(['#f2c230','#f2c230','#eeeae0','#ff7a1a','#2a6fb0']),.4,.1),boot=mat('#2b2420',.9),glove=mat('#e9d9a6',.9);
+  const g=new THREE.Group();g.userData.keep=1;
+  const body=new THREE.Group();g.add(body);
+  const leg=z=>{const l=new THREE.Group();l.position.set(0,.92,z);body.add(l);box(.17,.86,.19,suit,0,-.43,0,l);box(.27,.12,.2,boot,.04,-.86,0,l);return l;};
+  const lL=leg(.11),lR=leg(-.11);
+  const torso=new THREE.Group();torso.position.y=.92;body.add(torso);
+  box(.26,.62,.44,suit,0,.33,0,torso);box(.28,.42,.46,vest,0,.42,0,torso);[.1,-.1].forEach(z=>box(.29,.05,.12,mat('#c9cdd0',.3,.6),0,.32,z*1.4,torso));
+  const head=new THREE.Group();head.position.y=.8;torso.add(head);box(.08,.1,.1,skin,0,-.06,0,head);
+  const hd=new THREE.Mesh(new THREE.SphereGeometry(.12,10,8),skin);hd.position.y=.08;hd.castShadow=true;head.add(hd);
+  const hh=new THREE.Mesh(new THREE.SphereGeometry(.14,10,6,0,Math.PI*2,0,Math.PI/2),hat);hh.position.y=.13;hh.castShadow=true;head.add(hh);
+  const brim=cyl(.16,.16,.02,hat,12,head);brim.position.set(.03,.13,0);brim.scale.x=1.2;
+  box(.03,.04,.16,mat('#1a1a1a',.2,.5),.12,.09,0,head);
+  const arm=z=>{const a=new THREE.Group();a.position.set(0,.6,z);torso.add(a);box(.14,.62,.14,suit,0,-.3,0,a);box(.14,.12,.14,glove,0,-.64,0,a);return a;};
+  const aL=arm(.29),aR=arm(-.29);
+  return{g,body,torso,head,lL,lR,aL,aR};
+}
+/* spots: [x,z] free ground around the pad (in the group's coordinates); floor: optional rig floor box {x0,x1,z0,z1,y}; avoid(a,b): returns a detour point or null */
+function spawnCrew(p,n,spots,floor,avoid,floorN,blocked){
+  const R=Math.random,crew=[],tools=['hammer','wrench','look','crouch','radio','carry'];
+  const ground=()=>{for(let k=0;;k++){const s=spots[Math.floor(R()*spots.length)],v=V(s[0]+(R()-.5)*3,0,s[1]+(R()-.5)*3);if(k>8||!blocked||!blocked(v))return v;}};
+  const onFloor=()=>V(floor.x0+R()*(floor.x1-floor.x0),floor.y,(R()<.5?-1:1)*(floor.z0+R()*(floor.z1-floor.z0)));
+  const total=n+(floor?floorN||0:0);
+  for(let i=0;i<total;i++){const w=makeWorker(),fl=floor&&i>=n;w.fl=fl;const st=fl?onFloor():ground();w.g.position.copy(st);w.g.rotation.y=R()*6.28;p.add(w.g);
+    w.speed=1.05+R()*.55;w.phase=R()*6;w.path=[];w.mode='idle';w.until=R()*4;w.act='look';crew.push(w);}
+  function plan(w){
+    // choose what to do next: mostly walk somewhere new, sometimes chat with a nearby mate or keep working on the spot
+    const r=R();
+    if(!w.fl&&r<.18){const mate=crew.find(o=>o!==w&&!o.fl&&o.mode==='idle'&&o.g.position.distanceTo(w.g.position)<9);
+      if(mate){const mid=w.g.position.clone().lerp(mate.g.position,.5),off=new THREE.Vector3().subVectors(w.g.position,mate.g.position).setY(0).normalize().multiplyScalar(.7);
+        w.path=[mid.clone().add(off)];w.next={act:'talk',face:mate,dur:4+R()*6};mate.mode='idle';mate.act='talk';mate.face=w;mate.until=w.t+9+R()*5;return;}}
+    const to=w.fl?onFloor():ground();w.path=[to];
+    if(!w.fl&&avoid){const d=avoid(w.g.position,to);if(d)w.path=[d,to];}
+    w.next={act:tools[Math.floor(R()*tools.length)],dur:2+R()*(w.fl?5:9)};
+  }
+  let last=performance.now();
+  W.anim.push(now=>{const dt=Math.min(.1,(now-last)/1000);last=now;
+    crew.forEach(w=>{w.t=now/1000;const g=w.g,P=g.position;
+      if(w.mode==='idle'){if(w.t>w.until){plan(w);w.mode='walk';}}
+      if(w.mode==='walk'){const tg=w.path[0];const dx=tg.x-P.x,dz=tg.z-P.z,d=Math.hypot(dx,dz);
+        if(d<.08){w.path.shift();if(!w.path.length){w.mode='idle';w.act=w.next.act;w.face=w.next.face||null;w.until=w.t+w.next.dur;}}
+        else{const s=Math.min(d,w.speed*dt);P.x+=dx/d*s;P.z+=dz/d*s;const want=Math.atan2(-dz,dx);let da=want-g.rotation.y;da=Math.atan2(Math.sin(da),Math.cos(da));g.rotation.y+=da*Math.min(1,dt*8);}}
+      // pose
+      const walk=w.mode==='walk',ph=w.phase+now/1000*w.speed*5.2,sw=walk?Math.sin(ph)*.55:0;
+      w.lL.rotation.z=sw;w.lR.rotation.z=-sw;w.aL.rotation.z=-sw*.8;w.aR.rotation.z=sw*.8;w.aL.rotation.x=w.aR.rotation.x=0;
+      w.body.position.y=walk?Math.abs(Math.cos(ph))*.04:0;w.torso.rotation.z=0;w.head.rotation.y=0;w.body.scale.y=1;
+      if(!walk){const a=w.act,t=now/1000+w.phase;
+        if(w.face){const dx=w.face.g.position.x-P.x,dz=w.face.g.position.z-P.z;const want=Math.atan2(-dz,dx);let da=want-g.rotation.y;da=Math.atan2(Math.sin(da),Math.cos(da));g.rotation.y+=da*Math.min(1,dt*5);}
+        if(a==='hammer'){w.aR.rotation.z=1.6+Math.sin(t*7)*.7;w.torso.rotation.z=-.15;}
+        else if(a==='wrench'){w.aR.rotation.z=1.2+Math.sin(t*3)*.35;w.aL.rotation.z=1.0+Math.sin(t*3+1)*.3;}
+        else if(a==='crouch'){w.lL.rotation.z=.9;w.lR.rotation.z=.6;w.body.position.y=-.32;w.torso.rotation.z=-.5;w.aR.rotation.z=.9+Math.sin(t*2)*.2;}
+        else if(a==='radio'){w.aR.rotation.z=2.5;w.aR.rotation.x=.5;w.head.rotation.y=Math.sin(t*.7)*.4;}
+        else if(a==='carry'){w.aL.rotation.z=w.aR.rotation.z=.9;w.aL.rotation.x=-.2;w.aR.rotation.x=.2;}
+        else if(a==='talk'){w.aR.rotation.z=.3+Math.max(0,Math.sin(t*2.3))*.9;w.head.rotation.y=Math.sin(t*1.3)*.15;}
+        else{w.head.rotation.y=Math.sin(t*.6)*.8;}}
+    });
+  });
+  return crew;
+}
 function buildSite(ctx){
   const job=ctx.job,oil=job.kind==='oil',site=siteById(job.site)||{id:'x'},look=SITE_LOOK[site.id]||{};baseScene();addGround(1400,look.ground?sandTexC([100,100],look.ground):null);addDunesC(oil?260:180,look.dune||'#c9a874');siteScenery(site);
   const pad=new THREE.Mesh(new THREE.PlaneGeometry(oil?110:52,oil?90:46),new THREE.MeshStandardMaterial({map:gravelTex([10,9]),roughness:1}));pad.material.userData.own=1;pad.rotation.x=-Math.PI/2;pad.position.y=.03;pad.receiveShadow=true;scene.add(pad);
@@ -1453,6 +1514,12 @@ function buildSite(ctx){
   }
   if(ctx.unloading)W.supply=(()=>{const s=makeSupplyTruck(ctx.unloading.cargo,ctx.unloading.mission==='service');s.position.set(oil?-30:18,0,oil?18:-4);s.rotation.y=oil?.5:-.3;scene.add(s);return s;})();
   if(W.lay&&W.mergeLay)mergeStatic(W.lay);if(W.scen)mergeStatic(W.scen);
+  if(!oil){const spots=[[-4,-10.5],[-11.3,-7],[3,-11.2],[-7.5,6.5],[-2,9.9],[-17,6],[-8,15.8],[14,7],[24,4.5],[14,-3],[10,-7],[6,4],[-7,-3],[47,-12],[49,-17],[30,-6]];
+    const obs=[[-4.8,19.8,-1.7,1.7],[-6,1.4,3.8,9.2],[-6.5,1.9,10.8,14.4],[-25.6,-16.4,7.4,10.6],[-15.6,-12.4,-13.2,-.8],[-8.8,-2.2,-14.6,-12.3],[-14.4,-5.6,16.6,20.4],[-4.5,2.5,-11,-7],[0.4,7.4,-17,-12]];
+    const hit=(a,b)=>obs.find(o=>{for(let k=1;k<20;k++){const t=k/20,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;if(x>o[0]&&x<o[1]&&z>o[2]&&z<o[3])return true;}return false;});
+    const avoid=(a,b)=>{const o=hit(a,b);if(!o)return null;let best=null,bl=1e9;[[o[0]-.8,o[2]-.8],[o[0]-.8,o[3]+.8],[o[1]+.8,o[2]-.8],[o[1]+.8,o[3]+.8]].forEach(([x,z])=>{const c=V(x,0,z);if(hit(a,c)||hit(c,b))return;const l=a.distanceTo(c)+c.distanceTo(b);if(l<bl){bl=l;best=c;}});return best;};
+    W.crew=spawnCrew(W.lay,6+Math.floor(Math.random()*3),spots,W.rt?{x0:-3.3,x1:-1.4,z0:.65,z1:.6,y:1.98}:null,avoid,2,v=>obs.some(o=>v.x>o[0]-.4&&v.x<o[1]+.4&&v.z>o[2]-.4&&v.z<o[3]+.4));}
+  else{const sp=[];for(let i=0;i<14;i++){const a=Math.random()*6.28,r=16+Math.random()*22;sp.push([Math.cos(a)*r,Math.sin(a)*r]);}W.crew=spawnCrew(scene,8+Math.floor(Math.random()*4),sp,null,null,0);}
   W.exh=puffs(40,1.6,'#5a5550',.35);W.dust=puffs(30,2.2,'#c9a874',.25);
 }
 function buildRoad(ctx){
